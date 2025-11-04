@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>知识图谱终极诊断工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <style>
+        .log-container {
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+        #chartContainer {
+            width: 100%;
+            height: 600px;
+        }
+        .data-panel {
+            max-height: 400px;
+            overflow-y: auto;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 p-4">
+    <div class="max-w-6xl mx-auto">
+        <h1 class="text-2xl font-bold mb-4">知识图谱终极诊断工具</h1>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- 左侧控制面板 -->
+            <div class="lg:col-span-1">
+                <div class="bg-white shadow-md rounded-lg p-4 mb-6">
+                    <h2 class="text-lg font-semibold mb-4">控制选项</h2>
+                    
+                    <div class="space-y-4">
+                        <div>
+                            <button id="fetchDataBtn" class="w-full bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors mb-2">
+                                <i class="fa fa-refresh mr-2"></i>获取API数据
+                            </button>
+                            <button id="analyzeBtn" class="w-full bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 transition-colors mb-2">
+                                <i class="fa fa-search mr-2"></i>分析数据
+                            </button>
+                            <button id="renderChartBtn" class="w-full bg-purple-500 text-white px-4 py-2 rounded-md hover:bg-purple-600 transition-colors">
+                                <i class="fa fa-paint-brush mr-2"></i>渲染图表
+                            </button>
+                        </div>
+                        
+                        <div class="space-y-2">
+                            <h3 class="font-medium text-sm text-gray-600">图表配置</h3>
+                            <div class="flex items-center justify-between">
+                                <label class="text-sm text-gray-700">显示边标签</label>
+                                <input type="checkbox" id="showEdgeLabels" checked class="rounded text-blue-500 focus:ring-blue-500">
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <label class="text-sm text-gray-700">显示节点标签</label>
+                                <input type="checkbox" id="showNodeLabels" checked class="rounded text-blue-500 focus:ring-blue-500">
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <label class="text-sm text-gray-700">边宽度</label>
+                                <input type="range" id="edgeWidth" min="1" max="5" value="2" class="w-32">
+                                <span id="edgeWidthValue" class="text-sm font-medium">2</span>
+                            </div>
+                        </div>
+                        
+                        <div class="pt-2">
+                            <button id="clearLogsBtn" class="w-full bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition-colors">
+                                <i class="fa fa-trash mr-2"></i>清空日志
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 统计信息 -->
+                <div class="bg-white shadow-md rounded-lg p-4 mb-6">
+                    <h2 class="text-lg font-semibold mb-4">数据统计</h2>
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-700">总节点数:</span>
+                            <span id="totalNodes" class="font-bold text-blue-600">0</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-700">总边数:</span>
+                            <span id="totalEdges" class="font-bold text-blue-600">0</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-700">有效边数:</span>
+                            <span id="validEdges" class="font-bold text-green-600">0</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-700">无效边数:</span>
+                            <span id="invalidEdges" class="font-bold text-red-600">0</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-sm text-gray-700">节点ID类型:</span>
+                            <span id="nodeIdTypes" class="font-bold text-purple-600">-</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 中间图表区域 -->
+            <div class="lg:col-span-2">
+                <div class="bg-white shadow-md rounded-lg p-4 mb-6">
+                    <h2 class="text-lg font-semibold mb-2">图表预览</h2>
+                    <div id="chartContainer"></div>
+                    <div class="mt-4 text-sm text-gray-600">
+                        <p id="chartStatus" class="italic">点击上方按钮加载和渲染数据</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 底部日志和数据面板 -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <!-- 调试日志 -->
+            <div class="bg-white shadow-md rounded-lg p-4">
+                <div class="flex justify-between items-center mb-2">
+                    <h2 class="text-lg font-semibold">调试日志</h2>
+                    <div class="text-sm text-gray-500" id="lastUpdated">最后更新: -</div>
+                </div>
+                <div id="logs" class="bg-gray-900 text-gray-200 p-3 rounded-md log-container"></div>
+            </div>
+            
+            <!-- 数据详情面板 -->
+            <div class="bg-white shadow-md rounded-lg p-4">
+                <div class="flex justify-between items-center mb-2">
+                    <h2 class="text-lg font-semibold">数据详情</h2>
+                    <div class="flex gap-2">
+                        <button id="viewNodesBtn" class="text-sm bg-blue-500 text-white px-3 py-1 rounded-md hover:bg-blue-600 transition-colors">
+                            节点数据
+                        </button>
+                        <button id="viewEdgesBtn" class="text-sm bg-green-500 text-white px-3 py-1 rounded-md hover:bg-green-600 transition-colors">
+                            边数据
+                        </button>
+                        <button id="viewMappingsBtn" class="text-sm bg-purple-500 text-white px-3 py-1 rounded-md hover:bg-purple-600 transition-colors">
+                            映射关系
+                        </button>
+                    </div>
+                </div>
+                <div id="dataPanel" class="bg-gray-50 p-3 rounded-md data-panel">
+                    <p class="text-gray-500 italic text-center py-4">请先获取数据，然后选择要查看的数据类型</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let chart = null;
+        let rawData = null;
+        let processedData = null;
+        let nodeMap = null;
+        let nameToIdMap = null;
+        
+        // DOM元素
+        const fetchDataBtn = document.getElementById('fetchDataBtn');
+        const analyzeBtn = document.getElementById('analyzeBtn');
+        const renderChartBtn = document.getElementById('renderChartBtn');
+        const clearLogsBtn = document.getElementById('clearLogsBtn');
+        const viewNodesBtn = document.getElementById('viewNodesBtn');
+        const viewEdgesBtn = document.getElementById('viewEdgesBtn');
+        const viewMappingsBtn = document.getElementById('viewMappingsBtn');
+        const showEdgeLabels = document.getElementById('showEdgeLabels');
+        const showNodeLabels = document.getElementById('showNodeLabels');
+        const edgeWidth = document.getElementById('edgeWidth');
+        const edgeWidthValue = document.getElementById('edgeWidthValue');
+        const logsElement = document.getElementById('logs');
+        const dataPanel = document.getElementById('dataPanel');
+        const chartStatus = document.getElementById('chartStatus');
+        const lastUpdated = document.getElementById('lastUpdated');
+        
+        // 统计元素
+        const totalNodes = document.getElementById('totalNodes');
+        const totalEdges = document.getElementById('totalEdges');
+        const validEdges = document.getElementById('validEdges');
+        const invalidEdges = document.getElementById('invalidEdges');
+        const nodeIdTypes = document.getElementById('nodeIdTypes');
+        
+        // 初始化图表
+        function initChart() {
+            if (!chart) {
+                chart = echarts.init(document.getElementById('chartContainer'));
+                
+                // 添加全局错误处理
+                chart.on('error', function(error) {
+                    log(`ECharts错误: ${error.message}`, 'error');
+                    console.error('ECharts错误:', error);
+                });
+                
+                // 窗口大小改变时重新调整图表大小
+                window.addEventListener('resize', function() {
+                    if (chart) {
+                        chart.resize();
+                    }
+                });
+                
+                // 初始图表配置
+                chart.setOption({
+                    backgroundColor: '#ffffff',
+                    title: {
+                        text: '知识图谱诊断',
+                        left: 'center',
+                        textStyle: {
+                            fontSize: 16,
+                            fontWeight: 'normal'
+                        }
+                    },
+                    tooltip: {
+                        trigger: 'item'
+                    },
+                    series: []
+                });
+            }
+        }
+        
+        // 添加日志
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            let colorClass = 'text-blue-400';
+            let icon = 'fa-info-circle';
+            
+            switch(type) {
+                case 'success':
+                    colorClass = 'text-green-400';
+                    icon = 'fa-check-circle';
+                    break;
+                case 'error':
+                    colorClass = 'text-red-400';
+                    icon = 'fa-exclamation-circle';
+                    break;
+                case 'warning':
+                    colorClass = 'text-yellow-400';
+                    icon = 'fa-exclamation-triangle';
+                    break;
+                case 'info':
+                    colorClass = 'text-blue-400';
+                    icon = 'fa-info-circle';
+                    break;
+            }
+            
+            const logEntry = document.createElement('div');
+            logEntry.className = 'mb-1 flex items-start';
+            logEntry.innerHTML = `
+                <span class="text-gray-500 mr-2">[${timestamp}]</span>
+                <i class="fa ${icon} ${colorClass} mr-2 mt-0.5"></i>
+                <span class="${colorClass}">${message}</span>
+            `;
+            
+            logsElement.appendChild(logEntry);
+            logsElement.scrollTop = logsElement.scrollHeight;
+            
+            // 更新最后更新时间
+            lastUpdated.textContent = `最后更新: ${timestamp}`;
+        }
+        
+        // 清空日志
+        function clearLogs() {
+            logsElement.innerHTML = '';
+            log('日志已清空', 'info');
+        }
+        
+        // 更新统计信息
+        function updateStats() {
+            if (!rawData) {
+                totalNodes.textContent = '0';
+                totalEdges.textContent = '0';
+                validEdges.textContent = '0';
+                invalidEdges.textContent = '0';
+                nodeIdTypes.textContent = '-';
+                return;
+            }
+            
+            const nodes = rawData.nodes || [];
+            const edges = rawData.edges || [];
+            
+            // 统计节点ID类型
+            const idTypes = new Set();
+            nodes.forEach(node => {
+                if (node.id !== undefined) {
+                    idTypes.add(typeof node.id);
+                }
+            });
+            
+            totalNodes.textContent = nodes.length;
+            totalEdges.textContent = edges.length;
+            
+            if (processedData) {
+                validEdges.textContent = processedData.links.length;
+                invalidEdges.textContent = edges.length - processedData.links.length;
+            } else {
+                validEdges.textContent = '0';
+                invalidEdges.textContent = '0';
+            }
+            
+            nodeIdTypes.textContent = Array.from(idTypes).join(', ');
+        }
+        
+        // 获取API数据
+        async function fetchApiData() {
+            fetchDataBtn.disabled = true;
+            fetchDataBtn.innerHTML = '<i class="fa fa-spinner fa-spin mr-2"></i>获取中...';
+            
+            try {
+                log('开始获取知识图谱API数据...');
+                const startTime = Date.now();
+                const response = await fetch('http://localhost:8080/api/knowledge-graph');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP错误! 状态码: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                const endTime = Date.now();
+                
+                rawData = data;
+                processedData = null;
+                nodeMap = null;
+                nameToIdMap = null;
+                
+                log(`成功获取数据，响应时间: ${endTime - startTime}ms`, 'success');
+                log(`数据结构: 节点数=${data.nodes?.length || 0}, 边数=${data.edges?.length || 0}`);
+                
+                // 检查数据完整性
+                if (!data.nodes || !Array.isArray(data.nodes)) {
+                    log('警告: 返回的数据中nodes字段缺失或不是数组', 'warning');
+                }
+                
+                if (!data.edges || !Array.isArray(data.edges)) {
+                    log('警告: 返回的数据中edges字段缺失或不是数组', 'warning');
+                }
+                
+                // 显示前5个节点和前5条边的示例
+                if (data.nodes && data.nodes.length > 0) {
+                    log('前3个节点示例:');
+                    data.nodes.slice(0, 3).forEach((node, index) => {
+                        log(`  节点${index + 1}: ID=${node.id}, 名称=${node.name}, 类型=${node.type || '未知'}, ID类型=${typeof node.id}`);
+                    });
+                }
+                
+                if (data.edges && data.edges.length > 0) {
+                    log('前3条边示例:');
+                    data.edges.slice(0, 3).forEach((edge, index) => {
+                        log(`  边${index + 1}: 源节点=${edge.sourceNodeName}, 目标节点=${edge.targetNodeName}, 关系=${edge.relation}`);
+                    });
+                }
+                
+                // 更新统计信息
+                updateStats();
+                
+                chartStatus.textContent = '数据获取成功，请点击"分析数据"按钮';
+                
+            } catch (error) {
+                log(`获取数据失败: ${error.message}`, 'error');
+                console.error('获取数据失败:', error);
+                chartStatus.textContent = `获取数据失败: ${error.message}`;
+            } finally {
+                fetchDataBtn.disabled = false;
+                fetchDataBtn.innerHTML = '<i class="fa fa-refresh mr-2"></i>获取API数据';
+            }
+        }
+        
+        // 分析数据
+        function analyzeData() {
+            if (!rawData) {
+                log('请先获取API数据', 'error');
+                chartStatus.textContent = '请先获取API数据';
+                return;
+            }
+            
+            analyzeBtn.disabled = true;
+            analyzeBtn.innerHTML = '<i class="fa fa-spinner fa-spin mr-2"></i>分析中...';
+            
+            try {
+                log('开始分析数据...');
+                
+                const nodes = rawData.nodes || [];
+                const edges = rawData.edges || [];
+                
+                // 创建节点映射
+                nodeMap = new Map();
+                nameToIdMap = {};
+                
+                log('创建节点映射...');
+                nodes.forEach((node, index) => {
+                    if (!node.name) {
+                        log(`警告: 节点${index + 1}缺少名称字段`, 'warning');
+                        return;
+                    }
+                    
+                    if (node.id === undefined || node.id === null) {
+                        log(`警告: 节点"${node.name}"缺少ID字段，使用索引作为ID`, 'warning');
+                        node.id = String(index);
+                    } else {
+                        // 确保ID是字符串类型
+                        node.id = typeof node.id === 'string' ? node.id : String(node.id);
+                    }
+                    
+                    // 确保名称是字符串类型
+                    const nodeName = typeof node.name === 'string' ? node.name : String(node.name);
+                    
+                    nodeMap.set(nodeName, node);
+                    nameToIdMap[nodeName] = node.id;
+                });
+                
+                log(`成功创建节点映射，共 ${nodeMap.size} 个节点`);
+                
+                // 分析边数据
+                log('分析边数据...');
+                const validLinks = [];
+                const invalidLinks = [];
+                
+                edges.forEach((edge, index) => {
+                    // 检查边的必需字段
+                    if (!edge.sourceNodeName || !edge.targetNodeName || !edge.relation) {
+                        invalidLinks.push({
+                            edge: edge,
+                            reason: `缺少必需字段: ${!edge.sourceNodeName ? 'sourceNodeName ' : ''}${!edge.targetNodeName ? 'targetNodeName ' : ''}${!edge.relation ? 'relation' : ''}`
+                        });
+                        return;
+                    }
+                    
+                    // 确保节点名称是字符串类型
+                    const sourceNodeName = typeof edge.sourceNodeName === 'string' ? edge.sourceNodeName : String(edge.sourceNodeName);
+                    const targetNodeName = typeof edge.targetNodeName === 'string' ? edge.targetNodeName : String(edge.targetNodeName);
+                    
+                    // 检查节点是否存在于映射中
+                    const sourceId = nameToIdMap[sourceNodeName];
+                    const targetId = nameToIdMap[targetNodeName];
+                    
+                    if (!sourceId) {
+                        invalidLinks.push({
+                            edge: edge,
+                            reason: `源节点"${sourceNodeName}"在节点映射中不存在`
+                        });
+                        return;
+                    }
+                    
+                    if (!targetId) {
+                        invalidLinks.push({
+                            edge: edge,
+                            reason: `目标节点"${targetNodeName}"在节点映射中不存在`
+                        });
+                        return;
+                    }
+                    
+                    // 创建有效的ECharts边
+                    validLinks.push({
+                        source: sourceId,
+                        target: targetId,
+                        name: edge.relation,
+                        relation: edge.relation,
+                        sourceName: sourceNodeName,
+                        targetName: targetNodeName,
+                        lineStyle: {
+                            color: edge.color || '#666666',
+                            width: parseInt(edgeWidth.value) || 2,
+                            opacity: 1,
+                            type: edge.dashed ? 'dashed' : 'solid'
+                        },
+                        label: {
+                            show: showEdgeLabels.checked,
+                            formatter: edge.relation,
+                            fontSize: 12,
+                            color: '#333',
+                            backgroundColor: 'rgba(255, 255, 255, 0.7)',
+                            padding: [2, 5],
+                            borderRadius: 3
+                        }
+                    });
+                });
+                
+                // 统计分析结果
+                log(`边分析结果: 总边数=${edges.length}, 有效边数=${validLinks.length}, 无效边数=${invalidLinks.length}`, 'info');
+                
+                if (invalidLinks.length > 0) {
+                    log('无效边原因统计:', 'warning');
+                    const reasonCount = {};
+                    invalidLinks.forEach(item => {
+                        reasonCount[item.reason] = (reasonCount[item.reason] || 0) + 1;
+                    });
+                    
+                    Object.entries(reasonCount).forEach(([reason, count]) => {
+                        log(`  ${reason}: ${count}条边`, 'warning');
+                    });
+                    
+                    // 显示前3条无效边的详细信息
+                    log('前3条无效边示例:', 'warning');
+                    invalidLinks.slice(0, 3).forEach((item, index) => {
+                        const edge = item.edge;
+                        log(`  边${index + 1}: ${edge.sourceNodeName || '?'} -> ${edge.targetNodeName || '?'} (${edge.relation || '?'}) - 原因: ${item.reason}`, 'warning');
+                    });
+                }
+                
+                // 保存处理后的数据
+                processedData = {
+                    nodes: nodes,
+                    links: validLinks
+                };
+                
+                // 更新统计信息
+                updateStats();
+                
+                log('数据分析完成，请点击"渲染图表"按钮', 'success');
+                chartStatus.textContent = '数据分析完成，有效边数: ' + validLinks.length;
+                
+            } catch (error) {
+                log(`数据分析失败: ${error.message}`, 'error');
+                console.error('数据分析失败:', error);
+                chartStatus.textContent = `数据分析失败: ${error.message}`;
+            } finally {
+                analyzeBtn.disabled = false;
+                analyzeBtn.innerHTML = '<i class="fa fa-search mr-2"></i>分析数据';
+            }
+        }
+        
+        // 渲染图表
+        function renderChart() {
+            if (!processedData) {
+                log('请先分析数据', 'error');
+                chartStatus.textContent = '请先分析数据';
+                return;
+            }
+            
+            renderChartBtn.disabled = true;
+            renderChartBtn.innerHTML = '<i class="fa fa-spinner fa-spin mr-2"></i>渲染中...';
+            
+            try {
+                log('开始渲染图表...');
+                
+                const nodes = processedData.nodes;
+                const links = processedData.links;
+                
+                // 更新边的样式根据当前设置
+                links.forEach(link => {
+                    link.label.show = showEdgeLabels.checked;
+                    link.lineStyle.width = parseInt(edgeWidth.value) || 2;
+                });
+                
+                // ECharts 配置
+                const option = {
+                    backgroundColor: '#ffffff',
+                    title: {
+                        text: `知识图谱可视化 (${nodes.length}个节点, ${links.length}条边)`,
+                        left: 'center',
+                        textStyle: {
+                            fontSize: 16,
+                            fontWeight: 'normal'
+                        }
+                    },
+                    tooltip: {
+                        trigger: 'item',
+                        formatter: function(params) {
+                            if (params.dataType === 'edge') {
+                                return `关系: ${params.data.relation}<br/>源节点: ${params.data.sourceName}<br/>目标节点: ${params.data.targetName}`;
+                            } else {
+                                return `节点: ${params.name}<br/>类型: ${params.data.type || '未知'}`;
+                            }
+                        }
+                    },
+                    animationDuration: 1500,
+                    animationEasingUpdate: 'quinticInOut',
+                    series: [
+                        {
+                            type: 'graph',
+                            layout: 'force',
+                            force: {
+                                repulsion: 100,
+                                edgeLength: 80,
+                                gravity: 0.1
+                            },
+                            roam: true,
+                            label: {
+                                show: showNodeLabels.checked,
+                                position: 'right',
+                                formatter: '{b}',
+                                fontSize: 12
+                            },
+                            data: nodes,
+                            links: links,
+                            lineStyle: {
+                                opacity: 1,
+                                width: 2,
+                                curveness: 0,
+                                color: '#666666'
+                            },
+                            emphasis: {
+                                focus: 'adjacency',
+                                lineStyle: {
+                                    width: 4
+                                }
+                            }
+                        }
+                    ]
+                };
+                
+                // 设置选项并渲染
+                chart.setOption(option);
+                
+                log(`图表渲染完成: ${nodes.length}个节点, ${links.length}条边`, 'success');
+                chartStatus.textContent = `图表渲染完成: ${nodes.length}个节点, ${links.length}条边`;
+                
+            } catch (error) {
+                log(`图表渲染失败: ${error.message}`, 'error');
+                console.error('图表渲染失败:', error);
+                chartStatus.textContent = `图表渲染失败: ${error.message}`;
+            } finally {
+                renderChartBtn.disabled = false;
+                renderChartBtn.innerHTML = '<i class="fa fa-paint-brush mr-2"></i>渲染图表';
+            }
+        }
+        
+        // 显示节点数据
+        function showNodesData() {
+            if (!rawData || !rawData.nodes) {
+                dataPanel.innerHTML = '<p class="text-gray-500 italic">暂无节点数据</p>';
+                return;
+            }
+            
+            const nodes = rawData.nodes.slice(0, 20); // 只显示前20个节点
+            let html = '<div class="grid grid-cols-1 gap-2">';
+            
+            nodes.forEach((node, index) => {
+                html += `
+                    <div class="border border-gray-200 rounded p-2 bg-white">
+                        <div class="font-medium text-blue-600 mb-1">节点 ${index + 1}</div>
+                        <div class="text-xs space-y-1">
+                            <div>ID: ${node.id} (${typeof node.id})</div>
+                            <div>名称: ${node.name}</div>
+                            <div>类型: ${node.type || '未知'}</div>
+                            ${node.x ? `<div>X坐标: ${node.x}</div>` : ''}
+                            ${node.y ? `<div>Y坐标: ${node.y}</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            if (rawData.nodes.length > 20) {
+                html += `<div class="text-center text-gray-500 text-sm mt-2">... 还有 ${rawData.nodes.length - 20} 个节点未显示</div>`;
+            }
+            
+            html += '</div>';
+            dataPanel.innerHTML = html;
+        }
+        
+        // 显示边数据
+        function showEdgesData() {
+            if (!rawData || !rawData.edges) {
+                dataPanel.innerHTML = '<p class="text-gray-500 italic">暂无边数据</p>';
+                return;
+            }
+            
+            const edges = rawData.edges.slice(0, 20); // 只显示前20条边
+            let html = '<div class="grid grid-cols-1 gap-2">';
+            
+            edges.forEach((edge, index) => {
+                const isValid = processedData && processedData.links.some(link => 
+                    link.sourceName === edge.sourceNodeName && 
+                    link.targetName === edge.targetNodeName && 
+                    link.relation === edge.relation
+                );
+                
+                const statusClass = isValid ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200';
+                const statusText = isValid ? '有效' : '无效';
+                
+                html += `
+                    <div class="border rounded p-2 ${statusClass}">
+                        <div class="font-medium text-blue-600 mb-1">边 ${index + 1} (${statusText})</div>
+                        <div class="text-xs space-y-1">
+                            <div>源节点: ${edge.sourceNodeName || '缺失'}</div>
+                            <div>目标节点: ${edge.targetNodeName || '缺失'}</div>
+                            <div>关系: ${edge.relation || '缺失'}</div>
+                            ${edge.color ? `<div>颜色: ${edge.color}</div>` : ''}
+                            ${edge.width ? `<div>宽度: ${edge.width}</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            if (rawData.edges.length > 20) {
+                html += `<div class="text-center text-gray-500 text-sm mt-2">... 还有 ${rawData.edges.length - 20} 条边未显示</div>`;
+            }
+            
+            html += '</div>';
+            dataPanel.innerHTML = html;
+        }
+        
+        // 显示映射关系
+        function showMappingsData() {
+            if (!nameToIdMap) {
+                dataPanel.innerHTML = '<p class="text-gray-500 italic">暂无映射数据，请先分析数据</p>';
+                return;
+            }
+            
+            const names = Object.keys(nameToIdMap).slice(0, 30); // 只显示前30个映射
+            let html = '<div class="grid grid-cols-1 gap-2">';
+            
+            names.forEach((name, index) => {
+                const node = nodeMap.get(name);
+                html += `
+                    <div class="border border-gray-200 rounded p-2 bg-white">
+                        <div class="font-medium text-purple-600 mb-1">映射 ${index + 1}</div>
+                        <div class="text-xs space-y-1">
+                            <div>节点名称: ${name}</div>
+                            <div>节点ID: ${nameToIdMap[name]} (${typeof nameToIdMap[name]})</div>
+                            ${node ? `<div>节点类型: ${node.type || '未知'}</div>` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            if (Object.keys(nameToIdMap).length > 30) {
+                html += `<div class="text-center text-gray-500 text-sm mt-2">... 还有 ${Object.keys(nameToIdMap).length - 30} 个映射未显示</div>`;
+            }
+            
+            html += '</div>';
+            dataPanel.innerHTML = html;
+        }
+        
+        // 绑定事件
+        function bindEvents() {
+            fetchDataBtn.addEventListener('click', fetchApiData);
+            analyzeBtn.addEventListener('click', analyzeData);
+            renderChartBtn.addEventListener('click', renderChart);
+            clearLogsBtn.addEventListener('click', clearLogs);
+            
+            viewNodesBtn.addEventListener('click', showNodesData);
+            viewEdgesBtn.addEventListener('click', showEdgesData);
+            viewMappingsBtn.addEventListener('click', showMappingsData);
+            
+            // 图表配置变化时更新
+            showEdgeLabels.addEventListener('change', function() {
+                if (chart && processedData) {
+                    renderChart();
+                }
+            });
+            
+            showNodeLabels.addEventListener('change', function() {
+                if (chart && processedData) {
+                    renderChart();
+                }
+            });
+            
+            edgeWidth.addEventListener('input', function() {
+                edgeWidthValue.textContent = this.value;
+                if (chart && processedData) {
+                    renderChart();
+                }
+            });
+        }
+        
+        // 初始化
+        function init() {
+            initChart();
+            bindEvents();
+            log('知识图谱终极诊断工具已初始化');
+            log('请点击"获取API数据"按钮开始诊断');
+        }
+        
+        // 页面加载完成后初始化
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

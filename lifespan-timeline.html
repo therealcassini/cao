@@ -1,0 +1,586 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>历史人物生涯时间轴可视化</title>
+    <link href="https://cdn.jsdelivr.net/npm/antd@5.11.0/dist/reset.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #f0f2f5;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        
+        .title {
+            text-align: center;
+            margin-bottom: 30px;
+            color: #1a1a1a;
+        }
+        
+        .visualization-section {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        
+        .lifespan-chart-container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        #lifespanChart {
+            width: 100%;
+            height: 500px;
+        }
+        
+        .age-chart-container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        
+        #ageChart {
+            width: 100%;
+            height: 400px;
+        }
+        
+        .controls-section {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            margin-top: 20px;
+        }
+        
+        .year-control {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+        
+        #yearSlider {
+            width: 600px;
+        }
+        
+        .current-year {
+            font-size: 24px;
+            font-weight: bold;
+            color: #1890ff;
+            min-width: 100px;
+            text-align: center;
+        }
+        
+        .events-section {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            margin-top: 20px;
+        }
+        
+        .events-section h3 {
+            margin-bottom: 15px;
+            color: #1a1a1a;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        th {
+            background-color: #fafafa;
+            font-weight: 600;
+            color: #1a1a1a;
+        }
+        
+        tr:hover {
+            background-color: #fafafa;
+        }
+        
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 10px;
+            flex-wrap: wrap;
+        }
+        
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .legend-color {
+            width: 20px;
+            height: 4px;
+            border-radius: 2px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 class="title">历史人物生涯时间轴</h1>
+        
+        <div class="visualization-section">
+            <!-- 人物生涯时间轴图表 -->
+            <div class="lifespan-chart-container">
+                <h3 style="text-align: center; margin-bottom: 20px;">人物生命周期时间轴</h3>
+                <div id="lifespanChart"></div>
+                <div class="legend">
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #5470c6;"></div>
+                        <span>生命周期</span>
+                    </div>
+                    <div class="legend-item">
+                        <div class="legend-color" style="background-color: #91cc75;"></div>
+                        <span>活跃时期</span>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 当前年龄柱状图 -->
+            <div class="age-chart-container">
+                <h3 style="text-align: center; margin-bottom: 20px;">当前人物年龄分布</h3>
+                <div id="ageChart"></div>
+            </div>
+        </div>
+        
+        <!-- 年份控制器 -->
+        <div class="controls-section">
+            <div class="year-control">
+                <span>公元前500年</span>
+                <input type="range" id="yearSlider" min="-500" max="1500" value="0" step="10">
+                <span>1500年</span>
+                <div class="current-year" id="currentYearDisplay">0年</div>
+            </div>
+        </div>
+        
+        <!-- 事件表格 -->
+        <div class="events-section">
+            <h3 id="eventsTitle">0年历史事件</h3>
+            <table id="eventsTable">
+                <thead>
+                    <tr>
+                        <th>事件名称</th>
+                        <th>相关人物</th>
+                        <th>描述</th>
+                    </tr>
+                </thead>
+                <tbody id="eventsTableBody">
+                    <tr>
+                        <td>加载中...</td>
+                        <td>-</td>
+                        <td>请稍候</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <script>
+        // 历史人物数据
+        const historicalPersons = [
+            { id: 1, name: '孔子', birthYear: -551, deathYear: -479, activeStart: -522, activeEnd: -481, description: '春秋时期著名思想家、教育家，儒家学派创始人' },
+            { id: 2, name: '孟子', birthYear: -372, deathYear: -289, activeStart: -320, activeEnd: -290, description: '战国时期思想家，儒家学派代表人物，被誉为"亚圣"' },
+            { id: 3, name: '秦始皇', birthYear: -259, deathYear: -210, activeStart: -247, activeEnd: -210, description: '中国历史上第一位皇帝，统一六国，建立中央集权制度' },
+            { id: 4, name: '汉武帝', birthYear: -156, deathYear: -87, activeStart: -141, activeEnd: -87, description: '西汉皇帝，推行推恩令，北击匈奴，开辟丝绸之路' },
+            { id: 5, name: '司马迁', birthYear: -145, deathYear: -86, activeStart: -126, activeEnd: -91, description: '西汉史学家、文学家，著有《史记》' },
+            { id: 6, name: '光武帝', birthYear: -5, deathYear: 57, activeStart: 25, activeEnd: 57, description: '东汉开国皇帝，恢复汉室，开创光武中兴' },
+            { id: 7, name: '曹操', birthYear: 155, deathYear: 220, activeStart: 184, activeEnd: 220, description: '东汉末年政治家、军事家、文学家，曹魏奠基者' },
+            { id: 8, name: '诸葛亮', birthYear: 181, deathYear: 234, activeStart: 208, activeEnd: 234, description: '三国时期蜀汉丞相，杰出的政治家、军事家、发明家' },
+            { id: 9, name: '王羲之', birthYear: 303, deathYear: 361, activeStart: 330, activeEnd: 360, description: '东晋书法家，被誉为"书圣"，代表作《兰亭序》' },
+            { id: 10, name: '唐太宗', birthYear: 598, deathYear: 649, activeStart: 626, activeEnd: 649, description: '唐朝第二位皇帝，开创贞观之治' },
+            { id: 11, name: '武则天', birthYear: 624, deathYear: 705, activeStart: 655, activeEnd: 705, description: '中国历史上唯一正统女皇帝' },
+            { id: 12, name: '李白', birthYear: 701, deathYear: 762, activeStart: 725, activeEnd: 756, description: '唐代伟大诗人，被誉为"诗仙"' },
+            { id: 13, name: '杜甫', birthYear: 712, deathYear: 770, activeStart: 746, activeEnd: 770, description: '唐代伟大诗人，被誉为"诗圣"' }
+        ];
+
+        // 历史事件数据
+        const historicalEvents = {
+            '-551': [{ name: '孔子出生', person: '孔子', description: '孔子诞生于鲁国陬邑（今山东曲阜）。' }],
+            '-522': [{ name: '孔子开始周游列国', person: '孔子', description: '孔子开始了长达十四年的周游列国之行。' }],
+            '-479': [{ name: '孔子逝世', person: '孔子', description: '孔子逝世，享年73岁。' }],
+            '-372': [{ name: '孟子出生', person: '孟子', description: '孟子出生于邹国（今山东邹城）。' }],
+            '-320': [{ name: '孟子见梁惠王', person: '孟子', description: '孟子拜见梁惠王，阐述仁政思想。' }],
+            '-289': [{ name: '孟子逝世', person: '孟子', description: '孟子逝世，享年84岁。' }],
+            '-259': [{ name: '秦始皇出生', person: '秦始皇', description: '秦始皇嬴政出生于赵国邯郸。' }],
+            '-247': [{ name: '秦始皇即位', person: '秦始皇', description: '13岁的嬴政即位为秦王。' }],
+            '-221': [{ name: '秦统一六国', person: '秦始皇', description: '秦始皇灭掉六国，建立中国历史上第一个中央集权制国家。' }],
+            '-210': [{ name: '秦始皇逝世', person: '秦始皇', description: '秦始皇在东巡途中病逝，享年50岁。' }],
+            '-156': [{ name: '汉武帝出生', person: '汉武帝', description: '汉武帝刘彻出生。' }],
+            '-141': [{ name: '汉武帝即位', person: '汉武帝', description: '汉武帝即位，开始了长达54年的统治。' }],
+            '-138': [{ name: '张骞出使西域', person: '汉武帝', description: '汉武帝派遣张骞出使西域，开辟丝绸之路。' }],
+            '-145': [{ name: '司马迁出生', person: '司马迁', description: '司马迁出生于龙门（今陕西韩城）。' }],
+            '-104': [{ name: '开始著《史记》', person: '司马迁', description: '司马迁开始撰写中国第一部纪传体通史《史记》。' }],
+            '-86': [{ name: '司马迁逝世', person: '司马迁', description: '司马迁逝世，享年59岁。' }],
+            '598': [{ name: '唐太宗出生', person: '唐太宗', description: '唐太宗李世民出生。' }],
+            '626': [{ name: '玄武门之变', person: '唐太宗', description: '李世民发动玄武门之变，不久后继位为唐太宗。' }],
+            '649': [{ name: '唐太宗逝世', person: '唐太宗', description: '唐太宗逝世，享年52岁。' }],
+            '624': [{ name: '武则天出生', person: '武则天', description: '武则天出生于并州文水（今山西文水）。' }],
+            '690': [{ name: '武则天称帝', person: '武则天', description: '武则天称帝，改国号为周，成为中国历史上唯一正统女皇帝。' }],
+            '701': [{ name: '李白出生', person: '李白', description: '李白出生于剑南道绵州昌隆县（今四川江油）。' }],
+            '725': [{ name: '李白出蜀漫游', person: '李白', description: '李白离开蜀地，开始漫游天下。' }],
+            '762': [{ name: '李白逝世', person: '李白', description: '李白逝世，享年62岁。' }],
+            '712': [{ name: '杜甫出生', person: '杜甫', description: '杜甫出生于河南巩县（今河南巩义）。' }],
+            '744': [{ name: '李杜相识', person: '杜甫', description: '杜甫与李白在洛阳相识，结下深厚友谊。' }],
+            '770': [{ name: '杜甫逝世', person: '杜甫', description: '杜甫在湘江舟中逝世，享年59岁。' }]
+        };
+
+        // 初始化变量
+        let lifespanChart = null;
+        let ageChart = null;
+        let currentYear = 0;
+
+        // 计算指定年份人物的年龄
+        function calculateAge(person, year) {
+            if (year < person.birthYear || year > person.deathYear) {
+                return null; // 不在在世年份
+            }
+            return year - person.birthYear;
+        }
+
+        // 获取指定年份所有在世人物的年龄
+        function getAlivePersonsAges(year) {
+            return historicalPersons
+                .map(person => ({
+                    name: person.name,
+                    age: calculateAge(person, year),
+                    person: person
+                }))
+                .filter(item => item.age !== null);
+        }
+
+        // 获取指定年份的事件
+        function getEventsByYear(year) {
+            return historicalEvents[year.toString()] || [];
+        }
+
+        // 初始化生涯时间轴图表
+        function initLifespanChart() {
+            lifespanChart = echarts.init(document.getElementById('lifespanChart'));
+            updateLifespanChart(currentYear);
+        }
+
+        // 更新生涯时间轴图表
+        function updateLifespanChart(selectedYear) {
+            const series = [];
+            
+            // 为每个人物创建生命周期条形图
+            historicalPersons.forEach((person, index) => {
+                // 生命周期条形图
+                series.push({
+                    name: person.name + '-生命周期',
+                    type: 'custom',
+                    renderItem: function(params, api) {
+                        const categoryIndex = api.value(0);
+                        const start = api.coord([api.value(1), categoryIndex]);
+                        const end = api.coord([api.value(2), categoryIndex]);
+                        const height = api.size([0, 1])[1] * 0.6;
+                        
+                        const rectShape = echarts.graphic.clipRectByRect({
+                            x: start[0],
+                            y: start[1] - height / 2,
+                            width: end[0] - start[0],
+                            height: height
+                        }, {
+                            x: params.coordSys.x,
+                            y: params.coordSys.y,
+                            width: params.coordSys.width,
+                            height: params.coordSys.height
+                        });
+                        
+                        return rectShape && {
+                            type: 'rect',
+                            transition: ['shape'],
+                            shape: rectShape,
+                            style: {
+                                fill: '#5470c6',
+                                opacity: 0.6
+                            }
+                        };
+                    },
+                    itemStyle: {
+                        color: '#5470c6'
+                    },
+                    encode: {
+                        x: [1, 2],
+                        y: 0
+                    },
+                    data: [[index, person.birthYear, person.deathYear]],
+                    silent: true
+                });
+                
+                // 活跃时期条形图
+                series.push({
+                    name: person.name + '-活跃时期',
+                    type: 'custom',
+                    renderItem: function(params, api) {
+                        const categoryIndex = api.value(0);
+                        const start = api.coord([api.value(1), categoryIndex]);
+                        const end = api.coord([api.value(2), categoryIndex]);
+                        const height = api.size([0, 1])[1] * 0.6;
+                        
+                        const rectShape = echarts.graphic.clipRectByRect({
+                            x: start[0],
+                            y: start[1] - height / 2,
+                            width: end[0] - start[0],
+                            height: height
+                        }, {
+                            x: params.coordSys.x,
+                            y: params.coordSys.y,
+                            width: params.coordSys.width,
+                            height: params.coordSys.height
+                        });
+                        
+                        return rectShape && {
+                            type: 'rect',
+                            transition: ['shape'],
+                            shape: rectShape,
+                            style: {
+                                fill: '#91cc75',
+                                opacity: 0.8
+                            }
+                        };
+                    },
+                    itemStyle: {
+                        color: '#91cc75'
+                    },
+                    encode: {
+                        x: [1, 2],
+                        y: 0
+                    },
+                    data: [[index, person.activeStart, person.activeEnd]],
+                    silent: true
+                });
+            });
+            
+            // 添加当前年份指示线
+            series.push({
+                name: '当前年份',
+                type: 'line',
+                data: historicalPersons.map((_, index) => [selectedYear, index]),
+                lineStyle: {
+                    color: '#ee6666',
+                    width: 2,
+                    type: 'dashed'
+                },
+                symbol: 'circle',
+                symbolSize: 6,
+                itemStyle: {
+                    color: '#ee6666'
+                },
+                encode: {
+                    x: 0,
+                    y: 1
+                },
+                tooltip: {
+                    formatter: function(params) {
+                        const person = historicalPersons[params.value[1]];
+                        const age = calculateAge(person, selectedYear);
+                        if (age !== null) {
+                            return `${person.name}<br/>${selectedYear}年时年龄：${age}岁`;
+                        } else {
+                            return `${person.name}<br/>${selectedYear}年时不在世`;
+                        }
+                    }
+                }
+            });
+            
+            const option = {
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: {
+                        type: 'cross'
+                    }
+                },
+                grid: {
+                    left: '10%',
+                    right: '10%',
+                    top: '10%',
+                    bottom: '10%'
+                },
+                xAxis: {
+                    type: 'value',
+                    name: '年份',
+                    min: -600,
+                    max: 1550,
+                    axisLabel: {
+                        formatter: function(value) {
+                            return value < 0 ? `${Math.abs(value)} BCE` : `${value} CE`;
+                        }
+                    }
+                },
+                yAxis: {
+                    type: 'category',
+                    data: historicalPersons.map(person => person.name),
+                    axisLabel: {
+                        fontSize: 11
+                    }
+                },
+                series: series
+            };
+            
+            lifespanChart.setOption(option);
+        }
+
+        // 初始化年龄分布图
+        function initAgeChart() {
+            ageChart = echarts.init(document.getElementById('ageChart'));
+            updateAgeChart(currentYear);
+        }
+
+        // 更新年龄分布图
+        function updateAgeChart(year) {
+            const ageData = getAlivePersonsAges(year);
+            
+            const option = {
+                title: {
+                    text: `${year}年人物年龄分布`,
+                    left: 'center'
+                },
+                tooltip: {
+                    trigger: 'axis',
+                    axisPointer: {
+                        type: 'shadow'
+                    },
+                    formatter: function(params) {
+                        const data = params[0];
+                        return `${data.name}<br/>年龄: ${data.value}岁`;
+                    }
+                },
+                grid: {
+                    left: '3%',
+                    right: '4%',
+                    bottom: '15%',
+                    containLabel: true
+                },
+                xAxis: {
+                    type: 'category',
+                    data: ageData.map(item => item.name),
+                    axisLabel: {
+                        interval: 0,
+                        rotate: 45
+                    }
+                },
+                yAxis: {
+                    type: 'value',
+                    name: '年龄（岁）',
+                    min: 0
+                },
+                series: [{
+                    name: '年龄',
+                    type: 'bar',
+                    data: ageData.map(item => item.age),
+                    itemStyle: {
+                        color: function(params) {
+                            const age = params.value;
+                            // 根据年龄设置不同的颜色
+                            if (age < 20) return '#91cc75';
+                            else if (age < 40) return '#fac858';
+                            else if (age < 60) return '#ee6666';
+                            else return '#73c0de';
+                        }
+                    },
+                    label: {
+                        show: true,
+                        position: 'top',
+                        formatter: '{c}岁'
+                    }
+                }]
+            };
+            
+            ageChart.setOption(option);
+        }
+
+        // 更新事件表格
+        function updateEventsTable(year) {
+            const events = getEventsByYear(year);
+            const tableBody = document.getElementById('eventsTableBody');
+            const eventsTitle = document.getElementById('eventsTitle');
+            
+            eventsTitle.textContent = `${year}年历史事件`;
+            tableBody.innerHTML = '';
+            
+            if (events.length > 0) {
+                events.forEach(event => {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${event.name}</td>
+                        <td>${event.person}</td>
+                        <td>${event.description}</td>
+                    `;
+                    tableBody.appendChild(row);
+                });
+            } else {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td colspan="3" style="text-align: center;">该年份暂无记录的事件</td>
+                `;
+                tableBody.appendChild(row);
+            }
+        }
+
+        // 初始化年份滑块
+        function initYearSlider() {
+            const yearSlider = document.getElementById('yearSlider');
+            const yearDisplay = document.getElementById('currentYearDisplay');
+            
+            yearSlider.value = currentYear;
+            yearDisplay.textContent = `${currentYear}年`;
+            
+            yearSlider.addEventListener('input', function() {
+                currentYear = parseInt(this.value);
+                yearDisplay.textContent = `${currentYear}年`;
+                
+                // 更新图表
+                updateLifespanChart(currentYear);
+                updateAgeChart(currentYear);
+                updateEventsTable(currentYear);
+            });
+        }
+
+        // 初始化页面
+        function init() {
+            initYearSlider();
+            initLifespanChart();
+            initAgeChart();
+            updateEventsTable(currentYear);
+            
+            // 响应式处理
+            window.addEventListener('resize', function() {
+                if (lifespanChart) lifespanChart.resize();
+                if (ageChart) ageChart.resize();
+            });
+        }
+
+        // 页面加载完成后初始化
+        window.onload = init;
+    </script>
+</body>
+</html>

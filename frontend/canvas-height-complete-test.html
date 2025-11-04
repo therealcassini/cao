@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ECharts Canvas高度测试</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            flex-direction: column;
+            background-color: #f5f5f5;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+        }
+        .header {
+            height: 60px;
+            background-color: #1890ff;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 20px;
+            font-weight: bold;
+        }
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+            padding: 20px;
+        }
+        .echarts-graph-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        .chart {
+            flex: 1;
+            width: 100%;
+            min-height: 700px;
+        }
+        .controls {
+            padding: 15px 20px;
+            background-color: #fafafa;
+            border-top: 1px solid #e8e8e8;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .status-info {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        .status-info h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .status-info pre {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        ECharts Canvas高度测试
+    </div>
+    <div class="main">
+        <div class="echarts-graph-container">
+            <div id="chart" class="chart"></div>
+            <div class="controls">
+                <button id="resizeBtn">重新调整大小</button>
+                <button id="refreshBtn">刷新图表</button>
+                <span id="dimensions">尺寸: 计算中...</span>
+            </div>
+        </div>
+        <div class="status-info">
+            <h3>Canvas元素信息</h3>
+            <pre id="canvasInfo">加载中...</pre>
+        </div>
+    </div>
+
+    <script>
+        // 初始化图表
+        const chartDom = document.getElementById('chart');
+        const myChart = echarts.init(chartDom);
+        const dimensionsElement = document.getElementById('dimensions');
+        const canvasInfoElement = document.getElementById('canvasInfo');
+        const resizeBtn = document.getElementById('resizeBtn');
+        const refreshBtn = document.getElementById('refreshBtn');
+
+        // 示例知识图谱数据
+        const graphData = {
+            nodes: [
+                { id: '1', name: '知识图谱', value: 100 },
+                { id: '2', name: '节点', value: 80 },
+                { id: '3', name: '边', value: 80 },
+                { id: '4', name: '属性', value: 60 },
+                { id: '5', name: '关系', value: 60 },
+                { id: '6', name: '可视化', value: 70 },
+                { id: '7', name: 'ECharts', value: 90 }
+            ],
+            edges: [
+                { source: '1', target: '2' },
+                { source: '1', target: '3' },
+                { source: '1', target: '4' },
+                { source: '1', target: '5' },
+                { source: '1', target: '6' },
+                { source: '6', target: '7' },
+                { source: '2', target: '4' },
+                { source: '3', target: '5' }
+            ]
+        };
+
+        // 图表配置
+        const option = {
+            backgroundColor: '#ffffff',
+            tooltip: {},
+            animationDurationUpdate: 1500,
+            animationEasingUpdate: 'quinticInOut',
+            series: [
+                {
+                    type: 'graph',
+                    layout: 'force',
+                    force: {
+                        repulsion: 1000,
+                        edgeLength: 80
+                    },
+                    roam: true,
+                    label: {
+                        show: true,
+                        position: 'right',
+                        formatter: '{b}'
+                    },
+                    edgeSymbol: ['circle', 'arrow'],
+                    edgeSymbolSize: [4, 8],
+                    edgeLabel: {
+                        fontSize: 12
+                    },
+                    data: graphData.nodes.map(node => ({
+                        ...node,
+                        symbolSize: node.value / 10,
+                        itemStyle: {
+                            color: '#1890ff'
+                        }
+                    })),
+                    links: graphData.edges,
+                    lineStyle: {
+                        opacity: 0.9,
+                        width: 2,
+                        curveness: 0.1
+                    }
+                }
+            ]
+        };
+
+        // 设置图表选项
+        myChart.setOption(option);
+
+        // 更新尺寸信息
+        function updateDimensions() {
+            const rect = chartDom.getBoundingClientRect();
+            dimensionsElement.textContent = `容器尺寸: ${Math.round(rect.width)}px × ${Math.round(rect.height)}px`;
+            
+            // 获取canvas元素信息
+            const canvas = myChart.getDom().querySelector('canvas');
+            if (canvas) {
+                const canvasRect = canvas.getBoundingClientRect();
+                const canvasInfo = `Canvas尺寸: ${Math.round(canvasRect.width)}px × ${Math.round(canvasRect.height)}px\n` +
+                                  `Canvas样式: ${canvas.style.width} × ${canvas.style.height}\n` +
+                                  `Canvas计算样式: ${getComputedStyle(canvas).width} × ${getComputedStyle(canvas).height}\n` +
+                                  `Canvas实际尺寸: ${canvas.width}px × ${canvas.height}px`;
+                canvasInfoElement.textContent = canvasInfo;
+            }
+        }
+
+        // 窗口大小改变时重新调整图表
+        window.addEventListener('resize', () => {
+            myChart.resize();
+            setTimeout(updateDimensions, 100);
+        });
+
+        // 重新调整大小按钮
+        resizeBtn.addEventListener('click', () => {
+            myChart.resize();
+            updateDimensions();
+        });
+
+        // 刷新图表按钮
+        refreshBtn.addEventListener('click', () => {
+            myChart.setOption(option);
+            updateDimensions();
+        });
+
+        // 初始化更新尺寸信息
+        setTimeout(updateDimensions, 100);
+    </script>
+</body>
+</html>

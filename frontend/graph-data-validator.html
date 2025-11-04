@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图谱数据验证工具</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #2c3e50;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+        .panel {
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            padding: 20px;
+            flex: 1;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        button {
+            background-color: #3498db;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #2980b9;
+        }
+        .result-area {
+            max-height: 500px;
+            overflow-y: auto;
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 13px;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s;
+        }
+        .tab.active {
+            color: #3498db;
+            border-bottom-color: #3498db;
+            font-weight: 600;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        .stats {
+            display: flex;
+            gap: 20px;
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #e8f4fd;
+            border-radius: 6px;
+        }
+        .stat-item {
+            display: flex;
+            flex-direction: column;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #3498db;
+        }
+        .stat-label {
+            font-size: 14px;
+            color: #666;
+        }
+        .error {
+            color: #e74c3c;
+        }
+        .success {
+            color: #27ae60;
+        }
+        .warning {
+            color: #f39c12;
+        }
+        .highlight {
+            background-color: #fff3cd;
+            padding: 2px 4px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <h1>图谱数据验证工具</h1>
+    
+    <div class="container">
+        <div class="panel">
+            <h2>操作控制</h2>
+            <div class="controls">
+                <button id="fetchFullGraph">获取完整图谱数据</button>
+                <button id="validateData">验证数据</button>
+                <button id="clearResults">清除结果</button>
+            </div>
+            
+            <div class="stats">
+                <div class="stat-item">
+                    <span class="stat-value" id="nodeCount">0</span>
+                    <span class="stat-label">节点总数</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value" id="edgeCount">0</span>
+                    <span class="stat-label">边总数</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value" id="matchedEdges">0</span>
+                    <span class="stat-label">匹配的边</span>
+                </div>
+                <div class="stat-item">
+                    <span class="stat-value error" id="unmatchedEdges">0</span>
+                    <span class="stat-label">未匹配的边</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="panel">
+            <h2>验证结果</h2>
+            <div class="tabs">
+                <div class="tab active" data-tab="summary">摘要</div>
+                <div class="tab" data-tab="nodeNames">节点名称列表</div>
+                <div class="tab" data-tab="unmatchedEdges">未匹配边</div>
+                <div class="tab" data-tab="rawData">原始数据</div>
+            </div>
+            
+            <div id="summary" class="tab-content active result-area"></div>
+            <div id="nodeNames" class="tab-content result-area"></div>
+            <div id="unmatchedEdges" class="tab-content result-area"></div>
+            <div id="rawData" class="tab-content result-area"></div>
+        </div>
+    </div>
+
+    <script>
+        // 存储图谱数据
+        let graphData = null;
+        
+        // DOM元素
+        const fetchFullGraphBtn = document.getElementById('fetchFullGraph');
+        const validateDataBtn = document.getElementById('validateData');
+        const clearResultsBtn = document.getElementById('clearResults');
+        const nodeCountEl = document.getElementById('nodeCount');
+        const edgeCountEl = document.getElementById('edgeCount');
+        const matchedEdgesEl = document.getElementById('matchedEdges');
+        const unmatchedEdgesEl = document.getElementById('unmatchedEdges');
+        const summaryEl = document.getElementById('summary');
+        const nodeNamesEl = document.getElementById('nodeNames');
+        const unmatchedEdgesTabEl = document.getElementById('unmatchedEdges');
+        const rawDataEl = document.getElementById('rawData');
+        const tabs = document.querySelectorAll('.tab');
+        
+        // 切换标签页
+        tabs.forEach(tab => {
+            tab.addEventListener('click', () => {
+                // 移除所有标签页的active类
+                tabs.forEach(t => t.classList.remove('active'));
+                // 隐藏所有内容
+                document.querySelectorAll('.tab-content').forEach(content => {
+                    content.classList.remove('active');
+                });
+                // 激活当前标签页和内容
+                tab.classList.add('active');
+                const tabId = tab.getAttribute('data-tab');
+                document.getElementById(tabId).classList.add('active');
+            });
+        });
+        
+        // 获取完整图谱数据
+        fetchFullGraphBtn.addEventListener('click', async () => {
+            try {
+                const response = await fetch('/api/graph/full');
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                graphData = await response.json();
+                
+                // 更新统计信息
+                nodeCountEl.textContent = graphData.nodes.length;
+                edgeCountEl.textContent = graphData.edges.length;
+                
+                // 显示数据加载成功
+                summaryEl.innerHTML = `<div class="success">✅ 数据加载成功！<br>节点数：${graphData.nodes.length}，边数：${graphData.edges.length}</div>`;
+                rawDataEl.textContent = JSON.stringify(graphData, null, 2);
+                
+                // 自动验证数据
+                validateData();
+                
+            } catch (error) {
+                summaryEl.innerHTML = `<div class="error">❌ 数据加载失败：${error.message}</div>`;
+                console.error('获取图谱数据失败:', error);
+            }
+        });
+        
+        // 验证数据
+        validateDataBtn.addEventListener('click', validateData);
+        
+        function validateData() {
+            if (!graphData || !graphData.nodes || !graphData.edges) {
+                summaryEl.innerHTML = '<div class="warning">⚠️ 请先获取图谱数据</div>';
+                return;
+            }
+            
+            // 创建节点名称到ID的映射
+            const nodeNameToIdMap = {};
+            const nodeNames = [];
+            
+            graphData.nodes.forEach(node => {
+                if (node.name) {
+                    nodeNameToIdMap[node.name] = node.id;
+                    nodeNames.push(node.name);
+                } else {
+                    console.warn('发现没有名称的节点:', node);
+                }
+            });
+            
+            // 检查边是否能匹配到节点
+            const unmatchedEdges = [];
+            let matchedEdgeCount = 0;
+            
+            graphData.edges.forEach(edge => {
+                const sourceId = nodeNameToIdMap[edge.sourceNodeName];
+                const targetId = nodeNameToIdMap[edge.targetNodeName];
+                
+                if (!sourceId || !targetId) {
+                    unmatchedEdges.push({
+                        edgeId: edge.id,
+                        sourceNodeName: edge.sourceNodeName,
+                        targetNodeName: edge.targetNodeName,
+                        relation: edge.relation,
+                        missing: !sourceId ? 'source' : 'target'
+                    });
+                } else {
+                    matchedEdgeCount++;
+                }
+            });
+            
+            // 更新统计信息
+            matchedEdgesEl.textContent = matchedEdgeCount;
+            unmatchedEdgesEl.textContent = unmatchedEdges.length;
+            
+            // 显示验证结果
+            let summaryHtml = `
+                <div class="success">✅ 数据验证完成<br></div>
+                <div>节点总数: <strong>${graphData.nodes.length}</strong></div>
+                <div>边总数: <strong>${graphData.edges.length}</strong></div>
+                <div>可匹配的边: <strong class="success">${matchedEdgeCount}</strong></div>
+                <div>未匹配的边: <strong class="error">${unmatchedEdges.length}</strong></div>
+            `;
+            
+            if (unmatchedEdges.length > 0) {
+                summaryHtml += `
+                    <div class="warning">⚠️ 发现${unmatchedEdges.length}条无法匹配的边，请查看"未匹配边"标签页</div>
+                `;
+            }
+            
+            summaryEl.innerHTML = summaryHtml;
+            
+            // 显示节点名称列表
+            nodeNamesEl.textContent = `节点名称列表 (${nodeNames.length}个):\n${nodeNames.sort().join('\n')}`;
+            
+            // 显示未匹配的边
+            if (unmatchedEdges.length > 0) {
+                let unmatchedHtml = `未匹配的边 (${unmatchedEdges.length}条):\n\n`;
+                unmatchedEdges.forEach((edge, index) => {
+                    unmatchedHtml += `${index + 1}. 边ID: ${edge.edgeId}\n`;
+                    unmatchedHtml += `   关系: ${edge.relation}\n`;
+                    unmatchedHtml += `   源节点: ${edge.sourceNodeName} ${!nodeNameToIdMap[edge.sourceNodeName] ? '(未找到)' : ''}\n`;
+                    unmatchedHtml += `   目标节点: ${edge.targetNodeName} ${!nodeNameToIdMap[edge.targetNodeName] ? '(未找到)' : ''}\n`;
+                    unmatchedHtml += '\n';
+                });
+                unmatchedEdgesTabEl.textContent = unmatchedHtml;
+            } else {
+                unmatchedEdgesTabEl.textContent = '✓ 所有边都能正确匹配到节点';
+            }
+        }
+        
+        // 清除结果
+        clearResultsBtn.addEventListener('click', () => {
+            graphData = null;
+            nodeCountEl.textContent = '0';
+            edgeCountEl.textContent = '0';
+            matchedEdgesEl.textContent = '0';
+            unmatchedEdgesEl.textContent = '0';
+            summaryEl.innerHTML = '';
+            nodeNamesEl.textContent = '';
+            unmatchedEdgesTabEl.textContent = '';
+            rawDataEl.textContent = '';
+        });
+    </script>
+</body>
+</html>

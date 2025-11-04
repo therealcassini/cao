@@ -1,0 +1,564 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>知识图谱边问题独立调试器</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .header {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .chart-container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        #graphChart {
+            width: 100%;
+            height: 600px;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+        }
+        .debug-info {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            background: #f8f8f8;
+            border: 1px solid #e0e0e0;
+            border-bottom: none;
+            border-radius: 4px 4px 0 0;
+            margin-right: 5px;
+        }
+        .tab.active {
+            background: white;
+            font-weight: bold;
+            color: #42b983;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+        pre {
+            background-color: #f8f8f8;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 400px;
+        }
+        button {
+            background-color: #42b983;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background-color: #3aa876;
+        }
+        button.secondary {
+            background-color: #6c757d;
+        }
+        button.secondary:hover {
+            background-color: #5a6268;
+        }
+        .stats {
+            display: flex;
+            margin-bottom: 20px;
+            gap: 20px;
+        }
+        .stat-item {
+            background: #f8f8f8;
+            padding: 15px 20px;
+            border-radius: 4px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .stat-label {
+            display: block;
+            font-size: 14px;
+            font-weight: normal;
+            color: #666;
+        }
+        .node-info {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: white;
+            padding: 15px;
+            border-radius: 4px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+            max-width: 300px;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>知识图谱边问题独立调试器</h1>
+            <p>这个页面独立于主应用，直接调用后端API并渲染ECharts图表，用于调试边不显示的问题。</p>
+            <div class="controls">
+                <button id="loadGraphBtn">加载图谱数据</button>
+                <button id="refreshBtn" class="secondary">刷新图表</button>
+                <button id="testConfigBtn" class="secondary">测试默认配置</button>
+            </div>
+        </div>
+        
+        <div class="chart-container">
+            <div class="stats">
+                <div class="stat-item">
+                    <span id="nodeCount">0</span>
+                    <span class="stat-label">节点数</span>
+                </div>
+                <div class="stat-item">
+                    <span id="edgeCount">0</span>
+                    <span class="stat-label">边数</span>
+                </div>
+                <div class="stat-item">
+                    <span id="validEdgeCount">0</span>
+                    <span class="stat-label">有效边数</span>
+                </div>
+            </div>
+            <div id="graphChart"></div>
+        </div>
+        
+        <div class="debug-info">
+            <div class="tabs">
+                <div class="tab active" data-tab="raw-data">原始数据</div>
+                <div class="tab" data-tab="processed-data">处理后数据</div>
+                <div class="tab" data-tab="edge-details">边详情</div>
+                <div class="tab" data-tab="node-mapping">节点映射</div>
+                <div class="tab" data-tab="debug-logs">调试日志</div>
+            </div>
+            
+            <div id="raw-data" class="tab-content active">
+                <h3>后端API返回的原始数据</h3>
+                <pre id="rawDataLog">点击上方按钮加载数据...</pre>
+            </div>
+            
+            <div id="processed-data" class="tab-content">
+                <h3>ECharts使用的处理后数据</h3>
+                <pre id="processedDataLog">暂无数据</pre>
+            </div>
+            
+            <div id="edge-details" class="tab-content">
+                <h3>边详细信息</h3>
+                <pre id="edgeDetailsLog">暂无数据</pre>
+            </div>
+            
+            <div id="node-mapping" class="tab-content">
+                <h3>节点名称到ID的映射</h3>
+                <pre id="nodeMappingLog">暂无数据</pre>
+            </div>
+            
+            <div id="debug-logs" class="tab-content">
+                <h3>详细调试日志</h3>
+                <pre id="debugLogs">暂无数据</pre>
+            </div>
+        </div>
+        
+        <div id="nodeInfoPopup" class="node-info">
+            <h4>节点信息</h4>
+            <div id="nodeInfoContent"></div>
+        </div>
+    </div>
+    
+    <script>
+        // 全局变量
+        let chartInstance = null;
+        let rawGraphData = null;
+        let processedGraphData = null;
+        let debugLogs = [];
+        
+        // 初始化图表
+        function initChart() {
+            const chartDom = document.getElementById('graphChart');
+            chartInstance = echarts.init(chartDom);
+            
+            // 设置默认空图表
+            const option = {
+                title: {
+                    text: '知识图谱调试',
+                    left: 'center'
+                },
+                tooltip: {
+                    formatter: function(params) {
+                        if (params.dataType === 'edge') {
+                            return `关系: ${params.data.name}<br/>源节点: ${params.data.sourceName}<br/>目标节点: ${params.data.targetName}`;
+                        } else {
+                            return `节点: ${params.data.name}`;
+                        }
+                    }
+                },
+                animationDurationUpdate: 1500,
+                animationEasingUpdate: 'quinticInOut',
+                series: [
+                    {
+                        type: 'graph',
+                        layout: 'force',
+                        force: {
+                            repulsion: 300,
+                            edgeLength: 100
+                        },
+                        roam: true,
+                        label: {
+                            show: true
+                        },
+                        data: [],
+                        links: [],
+                        lineStyle: {
+                            color: '#999',
+                            width: 2,
+                            curveness: 0
+                        }
+                    }
+                ]
+            };
+            
+            chartInstance.setOption(option);
+            
+            // 窗口大小改变时重新调整图表大小
+            window.addEventListener('resize', function() {
+                chartInstance.resize();
+            });
+            
+            // 点击节点显示详情
+            chartInstance.on('click', function(params) {
+                if (params.dataType === 'node') {
+                    showNodeInfo(params.data);
+                }
+            });
+        }
+        
+        // 加载图谱数据
+        async function loadGraphData() {
+            try {
+                addDebugLog('开始加载图谱数据...');
+                const response = await fetch('/api/knowledge-graph');
+                
+                if (!response.ok) {
+                    throw new Error(`API请求失败: ${response.status} ${response.statusText}`);
+                }
+                
+                rawGraphData = await response.json();
+                addDebugLog('图谱数据加载成功');
+                
+                // 显示原始数据
+                document.getElementById('rawDataLog').textContent = JSON.stringify(rawGraphData, null, 2);
+                
+                // 更新统计信息
+                document.getElementById('nodeCount').textContent = rawGraphData.nodes ? rawGraphData.nodes.length : 0;
+                document.getElementById('edgeCount').textContent = rawGraphData.edges ? rawGraphData.edges.length : 0;
+                
+                // 处理数据并渲染图表
+                processAndRenderGraph();
+            } catch (error) {
+                addDebugLog(`错误: ${error.message}`, true);
+                console.error('加载图谱数据失败:', error);
+            }
+        }
+        
+        // 处理数据并渲染图表
+        function processAndRenderGraph() {
+            if (!rawGraphData || !rawGraphData.nodes || !rawGraphData.edges) {
+                addDebugLog('没有有效的图谱数据可处理', true);
+                return;
+            }
+            
+            addDebugLog(`开始处理数据: ${rawGraphData.nodes.length}个节点, ${rawGraphData.edges.length}条边`);
+            
+            // 创建节点名称到ID的映射
+            const nodeNameToIdMap = new Map();
+            rawGraphData.nodes.forEach(node => {
+                nodeNameToIdMap.set(node.name, node.id);
+            });
+            
+            // 显示节点映射
+            const nodeMappingArray = Array.from(nodeNameToIdMap.entries()).map(([name, id]) => `${name} -> ${id}`);
+            document.getElementById('nodeMappingLog').textContent = nodeMappingArray.join('\n');
+            
+            // 转换节点数据
+            const echartsNodes = rawGraphData.nodes.map(node => ({
+                id: node.id,
+                name: node.name,
+                symbolSize: node.symbolSize || 30,
+                category: node.category || 0,
+                value: node.value,
+                itemStyle: {
+                    color: node.color || '#42b983'
+                }
+            }));
+            
+            // 转换边数据，使用节点ID进行关联
+            addDebugLog('\n===== 原始边数据详情 =====');
+            const edgeDetails = [];
+            rawGraphData.edges.forEach((edge, index) => {
+                const detail = `边${index + 1}: ID=${edge.id}, 源节点="${edge.sourceNodeName}", 目标节点="${edge.targetNodeName}", 关系="${edge.relation}"`;
+                edgeDetails.push(detail);
+                addDebugLog(detail);
+            });
+            
+            // 显示边详情
+            document.getElementById('edgeDetailsLog').textContent = edgeDetails.join('\n');
+            
+            const echartsEdges = rawGraphData.edges.map(edge => {
+                // 检查边的源节点和目标节点是否存在于映射中
+                const sourceId = nodeNameToIdMap.get(edge.sourceNodeName);
+                const targetId = nodeNameToIdMap.get(edge.targetNodeName);
+                
+                // 记录每条边的关联状态
+                const logMsg = `边ID: ${edge.id}, 源节点: "${edge.sourceNodeName}" -> ID=${sourceId || '未找到'}, 目标节点: "${edge.targetNodeName}" -> ID=${targetId || '未找到'}`;
+                addDebugLog(logMsg);
+                
+                return {
+                    source: sourceId,
+                    target: targetId,
+                    name: edge.relation,
+                    sourceName: edge.sourceNodeName,
+                    targetName: edge.targetNodeName,
+                    label: {
+                        show: true,
+                        formatter: edge.relation
+                    },
+                    lineStyle: {
+                        color: edge.color || '#999999',
+                        width: edge.width || 2,
+                        type: edge.dashed ? 'dashed' : 'solid'
+                    }
+                };
+            });
+            
+            // 统计有效和无效的边
+            const validEdges = echartsEdges.filter(edge => edge.source !== undefined && edge.target !== undefined);
+            const invalidEdges = echartsEdges.filter(edge => edge.source === undefined || edge.target === undefined);
+            
+            addDebugLog('\n===== 边处理统计 =====');
+            addDebugLog(`总边数: ${rawGraphData.edges.length}`);
+            addDebugLog(`有效边数: ${validEdges.length}`);
+            addDebugLog(`无效边数: ${invalidEdges.length}`);
+            
+            if (invalidEdges.length > 0) {
+                addDebugLog('无效边详情:');
+                invalidEdges.slice(0, 5).forEach((edge, index) => {
+                    addDebugLog(`  ${index + 1}. 源节点ID=${edge.source || '未找到'}, 目标节点ID=${edge.target || '未找到'}, 关系="${edge.name}"`);
+                });
+            }
+            
+            // 更新有效边统计
+            document.getElementById('validEdgeCount').textContent = validEdges.length;
+            
+            // 准备处理后的数据
+            processedGraphData = {
+                nodes: echartsNodes,
+                edges: validEdges
+            };
+            
+            // 显示处理后的数据
+            document.getElementById('processedDataLog').textContent = JSON.stringify(processedGraphData, null, 2);
+            
+            // 渲染图表
+            renderGraph(echartsNodes, validEdges);
+        }
+        
+        // 渲染图表
+        function renderGraph(nodes, edges) {
+            if (!chartInstance) {
+                initChart();
+            }
+            
+            addDebugLog('渲染知识图谱...');
+            
+            const option = {
+                tooltip: {
+                    formatter: function(params) {
+                        if (params.dataType === 'edge') {
+                            return `关系: ${params.data.name}<br/>源节点: ${params.data.sourceName}<br/>目标节点: ${params.data.targetName}`;
+                        } else {
+                            return `节点: ${params.data.name}`;
+                        }
+                    }
+                },
+                animationDurationUpdate: 1500,
+                animationEasingUpdate: 'quinticInOut',
+                series: [
+                    {
+                        type: 'graph',
+                        layout: 'force',
+                        force: {
+                            repulsion: 300,
+                            edgeLength: 100,
+                            gravity: 0.1
+                        },
+                        roam: true,
+                        label: {
+                            show: true,
+                            fontSize: 14
+                        },
+                        data: nodes,
+                        links: edges,
+                        lineStyle: {
+                            color: '#999',
+                            width: 2,
+                            curveness: 0
+                        },
+                        emphasis: {
+                            focus: 'adjacency',
+                            lineStyle: {
+                                width: 4
+                            }
+                        }
+                    }
+                ]
+            };
+            
+            chartInstance.setOption(option);
+            addDebugLog(`图表渲染完成: ${nodes.length}个节点, ${edges.length}条边`);
+        }
+        
+        // 测试默认配置
+        function testDefaultConfig() {
+            // 创建测试数据
+            const testNodes = [
+                {id: 1, name: '韩立', symbolSize: 30, itemStyle: {color: '#42b983'}},
+                {id: 2, name: '南宫婉', symbolSize: 30, itemStyle: {color: '#ff7875'}},
+                {id: 3, name: '厉飞雨', symbolSize: 30, itemStyle: {color: '#3b82f6'}},
+                {id: 4, name: '墨居仁', symbolSize: 30, itemStyle: {color: '#f59e0b'}}
+            ];
+            
+            const testEdges = [
+                {source: 1, target: 2, name: '夫妻', sourceName: '韩立', targetName: '南宫婉'},
+                {source: 1, target: 3, name: '好友', sourceName: '韩立', targetName: '厉飞雨'},
+                {source: 1, target: 4, name: '师父', sourceName: '韩立', targetName: '墨居仁'}
+            ];
+            
+            // 渲染测试数据
+            renderGraph(testNodes, testEdges);
+            
+            // 更新统计
+            document.getElementById('nodeCount').textContent = testNodes.length;
+            document.getElementById('edgeCount').textContent = testEdges.length;
+            document.getElementById('validEdgeCount').textContent = testEdges.length;
+            
+            addDebugLog('使用默认测试数据渲染图表，用于验证ECharts配置是否正确');
+        }
+        
+        // 添加调试日志
+        function addDebugLog(message, isError = false) {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = `[${timestamp}] ${message}`;
+            
+            debugLogs.push(logEntry);
+            document.getElementById('debugLogs').textContent = debugLogs.join('\n');
+            
+            // 滚动到底部
+            const logElement = document.getElementById('debugLogs');
+            logElement.scrollTop = logElement.scrollHeight;
+            
+            // 同时输出到控制台
+            if (isError) {
+                console.error(logEntry);
+            } else {
+                console.log(logEntry);
+            }
+        }
+        
+        // 显示节点信息
+        function showNodeInfo(nodeData) {
+            const popup = document.getElementById('nodeInfoPopup');
+            const content = document.getElementById('nodeInfoContent');
+            
+            content.innerHTML = `
+                <p><strong>名称:</strong> ${nodeData.name}</p>
+                <p><strong>ID:</strong> ${nodeData.id}</p>
+                <p><strong>大小:</strong> ${nodeData.symbolSize}px</p>
+                <p><strong>类别:</strong> ${nodeData.category || '默认'}</p>
+            `;
+            
+            popup.style.display = 'block';
+            
+            // 点击其他地方关闭
+            setTimeout(() => {
+                document.addEventListener('click', closeNodeInfo);
+            }, 100);
+        }
+        
+        // 关闭节点信息
+        function closeNodeInfo() {
+            document.getElementById('nodeInfoPopup').style.display = 'none';
+            document.removeEventListener('click', closeNodeInfo);
+        }
+        
+        // 标签页切换
+        function setupTabs() {
+            const tabs = document.querySelectorAll('.tab');
+            tabs.forEach(tab => {
+                tab.addEventListener('click', () => {
+                    // 移除所有活动状态
+                    tabs.forEach(t => t.classList.remove('active'));
+                    document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                    
+                    // 添加当前活动状态
+                    tab.classList.add('active');
+                    const tabId = tab.getAttribute('data-tab');
+                    document.getElementById(tabId).classList.add('active');
+                });
+            });
+        }
+        
+        // 初始化
+        function init() {
+            setupTabs();
+            initChart();
+            
+            // 绑定按钮事件
+            document.getElementById('loadGraphBtn').addEventListener('click', loadGraphData);
+            document.getElementById('refreshBtn').addEventListener('click', function() {
+                if (processedGraphData) {
+                    renderGraph(processedGraphData.nodes, processedGraphData.edges);
+                }
+            });
+            document.getElementById('testConfigBtn').addEventListener('click', testDefaultConfig);
+        }
+        
+        // 页面加载完成后初始化
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>

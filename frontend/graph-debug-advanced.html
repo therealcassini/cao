@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>知识图谱高级调试工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#3b82f6',
+                        secondary: '#10b981',
+                        neutral: '#6b7280',
+                        danger: '#ef4444',
+                        success: '#22c55e',
+                        warning: '#f59e0b',
+                    },
+                    fontFamily: {
+                        inter: ['Inter', 'sans-serif'],
+                    },
+                }
+            }
+        }
+    </script>
+    <style type="text/tailwindcss">
+        @layer utilities {
+            .content-auto {
+                content-visibility: auto;
+            }
+            .transition-height {
+                transition: max-height 0.3s ease;
+            }
+            .scrollbar-thin {
+                scrollbar-width: thin;
+            }
+            .scrollbar-thin::-webkit-scrollbar {
+                width: 4px;
+                height: 4px;
+            }
+            .scrollbar-thin::-webkit-scrollbar-thumb {
+                background-color: rgba(156, 163, 175, 0.5);
+                border-radius: 2px;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 font-inter text-gray-800">
+    <div class="container mx-auto px-4 py-8 max-w-7xl">
+        <!-- 标题部分 -->
+        <header class="mb-8 text-center">
+            <h1 class="text-[clamp(1.5rem,3vw,2.5rem)] font-bold text-gray-800 mb-2">知识图谱高级调试工具</h1>
+            <p class="text-gray-600 max-w-3xl mx-auto">全面分析知识图谱数据结构、节点映射关系和边的有效性，帮助排查边不显示的问题</p>
+        </header>
+
+        <!-- 控制区 -->
+        <div class="bg-white rounded-lg shadow-md p-4 mb-6">
+            <div class="flex flex-wrap gap-4">
+                <button id="fetchDataBtn" class="flex-1 min-w-[180px] bg-primary hover:bg-primary/90 text-white font-medium py-2 px-4 rounded-md transition-all flex items-center justify-center gap-2">
+                    <i class="fa fa-refresh"></i>
+                    <span>获取知识图谱数据</span>
+                </button>
+                <button id="debugBtn" class="flex-1 min-w-[180px] bg-secondary hover:bg-secondary/90 text-white font-medium py-2 px-4 rounded-md transition-all flex items-center justify-center gap-2">
+                    <i class="fa fa-bug"></i>
+                    <span>执行完整性检查</span>
+                </button>
+                <button id="renderSimpleBtn" class="flex-1 min-w-[180px] bg-warning hover:bg-warning/90 text-white font-medium py-2 px-4 rounded-md transition-all flex items-center justify-center gap-2">
+                    <i class="fa fa-paint-brush"></i>
+                    <span>渲染简化图表</span>
+                </button>
+            </div>
+        </div>
+
+        <!-- 统计信息 -->
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div class="bg-white rounded-lg shadow-md p-4">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-sm font-medium text-gray-500">节点总数</h3>
+                    <span class="text-primary text-2xl font-bold" id="totalNodes">0</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div class="bg-primary h-2 rounded-full transition-all" id="nodesProgress"></div>
+                </div>
+            </div>
+            <div class="bg-white rounded-lg shadow-md p-4">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-sm font-medium text-gray-500">边总数</h3>
+                    <span class="text-secondary text-2xl font-bold" id="totalEdges">0</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div class="bg-secondary h-2 rounded-full transition-all" id="edgesProgress"></div>
+                </div>
+            </div>
+            <div class="bg-white rounded-lg shadow-md p-4">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-sm font-medium text-gray-500">有效边数</h3>
+                    <span class="text-success text-2xl font-bold" id="validEdges">0</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div class="bg-success h-2 rounded-full transition-all" id="validEdgesProgress"></div>
+                </div>
+            </div>
+            <div class="bg-white rounded-lg shadow-md p-4">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-sm font-medium text-gray-500">无效边数</h3>
+                    <span class="text-danger text-2xl font-bold" id="invalidEdges">0</span>
+                </div>
+                <div class="w-full bg-gray-200 rounded-full h-2">
+                    <div class="bg-danger h-2 rounded-full transition-all" id="invalidEdgesProgress"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 主内容区 -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- 左侧：简化图表 -->
+            <div class="lg:col-span-1">
+                <div class="bg-white rounded-lg shadow-md p-4 h-full">
+                    <h2 class="text-lg font-semibold mb-4 flex items-center">
+                        <i class="fa fa-sitemap text-primary mr-2"></i>
+                        简化图表预览
+                    </h2>
+                    <div id="simpleChart" class="w-full h-[400px] border border-gray-200 rounded-md"></div>
+                    <div class="mt-4 text-sm text-gray-600">
+                        <p id="chartInfo" class="italic">点击上方按钮渲染简化图表</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 右侧：详细信息 -->
+            <div class="lg:col-span-2">
+                <!-- 调试结果选项卡 -->
+                <div class="bg-white rounded-lg shadow-md overflow-hidden mb-6">
+                    <div class="border-b border-gray-200">
+                        <button class="tab-btn px-4 py-3 font-medium text-primary border-b-2 border-primary" data-target="nodeMapTab">节点映射</button>
+                        <button class="tab-btn px-4 py-3 font-medium text-gray-500 hover:text-gray-700" data-target="edgeValidationTab">边有效性</button>
+                        <button class="tab-btn px-4 py-3 font-medium text-gray-500 hover:text-gray-700" data-target="rawDataTab">原始数据</button>
+                        <button class="tab-btn px-4 py-3 font-medium text-gray-500 hover:text-gray-700" data-target="apiResponseTab">API响应</button>
+                    </div>
+                    <div class="tab-content p-4" id="nodeMapTab">
+                        <div class="mb-4">
+                            <div class="flex justify-between items-center mb-2">
+                                <h3 class="font-medium">节点名称到ID的映射</h3>
+                                <div class="flex gap-2">
+                                    <input type="text" id="nodeSearch" placeholder="搜索节点名称" class="px-3 py-1 text-sm border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary/50">
+                                    <button id="clearSearch" class="px-2 py-1 text-sm text-gray-500 hover:text-gray-700">
+                                        <i class="fa fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
+                            <div id="nodeMapList" class="border border-gray-200 rounded-md p-2 max-h-[400px] overflow-y-auto scrollbar-thin">
+                                <p class="text-gray-500 italic text-center py-8">暂无数据，请先获取知识图谱数据</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="tab-content p-4 hidden" id="edgeValidationTab">
+                        <div class="mb-4">
+                            <h3 class="font-medium mb-2">边有效性验证</h3>
+                            <div id="edgeValidationList" class="border border-gray-200 rounded-md p-2 max-h-[400px] overflow-y-auto scrollbar-thin">
+                                <p class="text-gray-500 italic text-center py-8">暂无数据，请先获取知识图谱数据</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="tab-content p-4 hidden" id="rawDataTab">
+                        <div class="mb-4">
+                            <h3 class="font-medium mb-2">原始数据统计</h3>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
+                                <div class="bg-gray-50 p-3 rounded-md">
+                                    <h4 class="font-medium text-sm text-gray-600 mb-1">节点数据结构</h4>
+                                    <pre id="nodeStructure" class="text-xs bg-gray-100 p-2 rounded-md overflow-x-auto scrollbar-thin">// 暂无数据</pre>
+                                </div>
+                                <div class="bg-gray-50 p-3 rounded-md">
+                                    <h4 class="font-medium text-sm text-gray-600 mb-1">边数据结构</h4>
+                                    <pre id="edgeStructure" class="text-xs bg-gray-100 p-2 rounded-md overflow-x-auto scrollbar-thin">// 暂无数据</pre>
+                                </div>
+                            </div>
+                            <div class="mb-2">
+                                <h4 class="font-medium text-sm text-gray-600 mb-1">数据类型分析</h4>
+                                <div id="dataTypeAnalysis" class="bg-gray-50 p-3 rounded-md text-sm">
+                                    <p class="text-gray-500 italic">暂无数据</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="tab-content p-4 hidden" id="apiResponseTab">
+                        <div class="mb-4">
+                            <div class="flex justify-between items-center mb-2">
+                                <h3 class="font-medium">API响应详情</h3>
+                                <div class="text-sm text-gray-500" id="responseTime">-</div>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                <div>
+                                    <h4 class="font-medium text-sm text-gray-600 mb-1">响应头</h4>
+                                    <pre id="responseHeaders" class="text-xs bg-gray-100 p-2 rounded-md overflow-x-auto scrollbar-thin max-h-[200px]">// 暂无数据</pre>
+                                </div>
+                                <div>
+                                    <h4 class="font-medium text-sm text-gray-600 mb-1">响应状态</h4>
+                                    <div id="responseStatus" class="bg-gray-100 p-2 rounded-md text-sm">
+                                        <p class="text-gray-500 italic">暂无数据</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 错误列表 -->
+        <div class="bg-white rounded-lg shadow-md p-4 mt-6">
+            <h2 class="text-lg font-semibold mb-4 flex items-center">
+                <i class="fa fa-exclamation-triangle text-danger mr-2"></i>
+                错误和警告列表
+            </h2>
+            <div id="errorList" class="border border-gray-200 rounded-md p-2 max-h-[300px] overflow-y-auto scrollbar-thin">
+                <p class="text-gray-500 italic text-center py-4">暂无错误或警告</p>
+            </div>
+        </div>
+
+        <!-- 调试信息 -->
+        <div class="bg-white rounded-lg shadow-md p-4 mt-6">
+            <div class="flex justify-between items-center mb-4">
+                <h2 class="text-lg font-semibold flex items-center">
+                    <i class="fa fa-terminal text-gray-700 mr-2"></i>
+                    调试日志
+                </h2>
+                <button id="clearLogs" class="text-sm text-gray-500 hover:text-gray-700">
+                    <i class="fa fa-trash"></i> 清空日志
+                </button>
+            </div>
+            <div id="debugLogs" class="bg-gray-900 text-gray-200 rounded-md p-3 text-sm font-mono max-h-[300px] overflow-y-auto scrollbar-thin whitespace-pre-wrap">
+                <span class="text-gray-400">// 调试日志将显示在这里
+// 点击上方按钮开始调试</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 全局变量
+        let graphData = null;
+        let nodeMap = null;
+        let simpleChart = null;
+        let startTime = 0;
+        
+        // DOM元素
+        const fetchDataBtn = document.getElementById('fetchDataBtn');
+        const debugBtn = document.getElementById('debugBtn');
+        const renderSimpleBtn = document.getElementById('renderSimpleBtn');
+        const nodeSearch = document.getElementById('nodeSearch');
+        const clearSearch = document.getElementById('clearSearch');
+        const clearLogs = document.getElementById('clearLogs');
+        const tabBtns = document.querySelectorAll('.tab-btn');
+        const tabContents = document.querySelectorAll('.tab-content');
+        
+        // 初始化简化图表
+        function initSimpleChart() {
+            if (!simpleChart) {
+                simpleChart = echarts.init(document.getElementById('simpleChart'));
+                // 窗口大小变化时重新调整图表大小
+                window.addEventListener('resize', function() {
+                    if (simpleChart) {
+                        simpleChart.resize();
+                    }
+                });
+            }
+        }
+        
+        // 添加日志
+        function addLog(message, type = 'info') {
+            const logsContainer = document.getElementById('debugLogs');
+            const timestamp = new Date().toLocaleTimeString();
+            let color = '#a3a3a3'; // 默认灰色
+            
+            switch(type) {
+                case 'success':
+                    color = '#22c55e';
+                    break;
+                case 'error':
+                    color = '#ef4444';
+                    break;
+                case 'warning':
+                    color = '#f59e0b';
+                    break;
+                case 'info':
+                    color = '#60a5fa';
+                    break;
+            }
+            
+            const logEntry = `\n<span style="color: ${color};">[${timestamp}] ${message}</span>`;
+            logsContainer.innerHTML += logEntry;
+            logsContainer.scrollTop = logsContainer.scrollHeight; // 滚动到底部
+        }
+        
+        // 添加错误
+        function addError(message) {
+            const errorList = document.getElementById('errorList');
+            const errorItem = document.createElement('div');
+            errorItem.className = 'bg-red-50 border border-red-200 text-red-700 p-2 rounded-md mb-2 text-sm';
+            errorItem.innerHTML = `<i class="fa fa-exclamation-circle mr-1"></i>${message}`;
+            
+            if (errorList.querySelector('p')) {
+                errorList.innerHTML = '';
+            }
+            
+            errorList.appendChild(errorItem);
+            addLog(`错误: ${message}`, 'error');
+        }
+        
+        // 添加警告
+        function addWarning(message) {
+            const errorList = document.getElementById('errorList');
+            const warningItem = document.createElement('div');
+            warningItem.className = 'bg-amber-50 border border-amber-200 text-amber-700 p-2 rounded-md mb-2 text-sm';
+            warningItem.innerHTML = `<i class="fa fa-exclamation-triangle mr-1"></i>${message}`;
+            
+            if (errorList.querySelector('p')) {
+                errorList.innerHTML = '';
+            }
+            
+            errorList.appendChild(warningItem);
+            addLog(`警告: ${message}`, 'warning');
+        }
+        
+        // 清空错误列表
+        function clearErrorList() {
+            const errorList = document.getElementById('errorList');
+            errorList.innerHTML = '<p class="text-gray-500 italic text-center py-4">暂无错误或警告</p>';
+        }
+        
+        // 更新统计信息
+        function updateStats(nodes, edges, validEdges, invalidEdges) {
+            const totalNodes = document.getElementById('totalNodes');
+            const totalEdges = document.getElementById('totalEdges');
+            const validEdgesEl = document.getElementById('validEdges');
+            const invalidEdgesEl = document.getElementById('invalidEdges');
+            
+            const nodesProgress = document.getElementById('nodesProgress');
+            const edgesProgress = document.getElementById('edgesProgress');
+            const validEdgesProgress = document.getElementById('validEdgesProgress');
+            const invalidEdgesProgress = document.getElementById('invalidEdgesProgress');
+            
+            totalNodes.textContent = nodes.length;
+            totalEdges.textContent = edges.length;
+            validEdgesEl.textContent = validEdges.length;
+            invalidEdgesEl.textContent = invalidEdges.length;
+            
+            // 进度条显示 (使用对数比例让小数字更明显)
+            const nodesMax = Math.max(...[nodes.length, 10, 100]);
+            const edgesMax = Math.max(...[edges.length, 10, 100]);
+            
+            nodesProgress.style.width = `${Math.min(100, (nodes.length / nodesMax) * 100)}%`;
+            edgesProgress.style.width = `${Math.min(100, (edges.length / edgesMax) * 100)}%`;
+            validEdgesProgress.style.width = `${edges.length > 0 ? (validEdges.length / edges.length) * 100 : 0}%`;
+            invalidEdgesProgress.style.width = `${edges.length > 0 ? (invalidEdges.length / edges.length) * 100 : 0}%`;
+        }
+        
+        // 显示节点映射
+        function displayNodeMap(map) {
+            const nodeMapList = document.getElementById('nodeMapList');
+            
+            if (!map || Object.keys(map).length === 0) {
+                nodeMapList.innerHTML = '<p class="text-gray-500 italic text-center py-8">暂无数据</p>';
+                return;
+            }
+            
+            // 清空列表
+            nodeMapList.innerHTML = '';
+            
+            // 创建搜索功能的节点列表
+            function createNodeList(filter = '') {
+                nodeMapList.innerHTML = '';
+                
+                const filteredNodes = Object.keys(map).filter(nodeName => 
+                    nodeName.toLowerCase().includes(filter.toLowerCase())
+                );
+                
+                if (filteredNodes.length === 0) {
+                    nodeMapList.innerHTML = '<p class="text-gray-500 italic text-center py-2">未找到匹配的节点</p>';
+                    return;
+                }
+                
+                filteredNodes.forEach(nodeName => {
+                    const nodeInfo = map[nodeName];
+                    const nodeItem = document.createElement('div');
+                    nodeItem.className = 'bg-gray-50 border border-gray-200 rounded-md p-2 mb-2 hover:bg-gray-100 transition-colors';
+                    nodeItem.innerHTML = `
+                        <div class="flex justify-between items-center">
+                            <span class="font-medium text-primary">${nodeName}</span>
+                            <span class="text-sm text-gray-600 bg-gray-200 px-2 py-0.5 rounded">ID: ${nodeInfo.id}</span>
+                        </div>
+                        <div class="text-xs text-gray-500 mt-1">
+                            类型: ${nodeInfo.type || '未知'} | ID类型: ${typeof nodeInfo.id}
+                        </div>
+                    `;
+                    nodeMapList.appendChild(nodeItem);
+                });
+            }
+            
+            // 初始显示所有节点
+            createNodeList();
+            
+            // 搜索功能
+            nodeSearch.addEventListener('input', function() {
+                createNodeList(this.value);
+            });
+            
+            // 清除搜索
+            clearSearch.addEventListener('click', function() {
+                nodeSearch.value = '';
+                createNodeList();
+            });
+        }
+        
+        // 显示边有效性
+        function displayEdgeValidation(edges, nodeMap) {
+            const edgeValidationList = document.getElementById('edgeValidationList');
+            
+            if (!edges || edges.length === 0) {
+                edgeValidationList.innerHTML = '<p class="text-gray-500 italic text-center py-8">暂无数据</p>';
+                return;
+            }
+            
+            // 清空列表
+            edgeValidationList.innerHTML = '';
+            
+            edges.forEach((edge, index) => {
+                const sourceNode = nodeMap[edge.sourceNodeName];
+                const targetNode = nodeMap[edge.targetNodeName];
+                const isValid = sourceNode && targetNode;
+                
+                const edgeItem = document.createElement('div');
+                edgeItem.className = `border rounded-md p-2 mb-2 transition-colors ${isValid ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`;
+                edgeItem.innerHTML = `
+                    <div class="flex justify-between items-center">
+                        <span class="font-medium ${isValid ? 'text-green-700' : 'text-red-700'}">边 #${index + 1}: ${edge.relation}</span>
+                        <span class="text-xs font-bold px-2 py-0.5 rounded ${isValid ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">${isValid ? '有效' : '无效'}</span>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2 text-xs">
+                        <div class="bg-white p-1.5 rounded">
+                            <div class="text-gray-500">源节点:</div>
+                            <div>${edge.sourceNodeName}</div>
+                            <div class="text-gray-400 mt-0.5">ID: ${sourceNode ? sourceNode.id : '未找到'} (${sourceNode ? typeof sourceNode.id : 'N/A'})</div>
+                        </div>
+                        <div class="bg-white p-1.5 rounded">
+                            <div class="text-gray-500">目标节点:</div>
+                            <div>${edge.targetNodeName}</div>
+                            <div class="text-gray-400 mt-0.5">ID: ${targetNode ? targetNode.id : '未找到'} (${targetNode ? typeof targetNode.id : 'N/A'})</div>
+                        </div>
+                    </div>
+                `;
+                
+                edgeValidationList.appendChild(edgeItem);
+            });
+        }
+        
+        // 显示原始数据统计
+        function displayRawDataStats(nodes, edges) {
+            const nodeStructure = document.getElementById('nodeStructure');
+            const edgeStructure = document.getElementById('edgeStructure');
+            const dataTypeAnalysis = document.getElementById('dataTypeAnalysis');
+            
+            // 节点数据结构
+            if (nodes && nodes.length > 0) {
+                const firstNode = nodes[0];
+                const nodeKeys = Object.keys(firstNode);
+                let nodeStructureStr = '// 节点数据结构示例 (第一个节点)\n';
+                nodeKeys.forEach(key => {
+                    nodeStructureStr += `// ${key}: ${typeof firstNode[key]}\n`;
+                });
+                nodeStructure.textContent = nodeStructureStr;
+            }
+            
+            // 边数据结构
+            if (edges && edges.length > 0) {
+                const firstEdge = edges[0];
+                const edgeKeys = Object.keys(firstEdge);
+                let edgeStructureStr = '// 边数据结构示例 (第一个边)\n';
+                edgeKeys.forEach(key => {
+                    edgeStructureStr += `// ${key}: ${typeof firstEdge[key]}\n`;
+                });
+                edgeStructure.textContent = edgeStructureStr;
+            }
+            
+            // 数据类型分析
+            if (nodes && edges) {
+                let analysis = '<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">';
+                
+                // 节点ID类型分析
+                const nodeIdTypes = {};
+                nodes.forEach(node => {
+                    const idType = typeof node.id;
+                    nodeIdTypes[idType] = (nodeIdTypes[idType] || 0) + 1;
+                });
+                
+                let nodeIdTypeStr = '<div><strong>节点ID类型分布:</strong><ul class="list-disc list-inside ml-2 mt-1">';
+                Object.entries(nodeIdTypes).forEach(([type, count]) => {
+                    nodeIdTypeStr += `<li>${type}: ${count} (${((count/nodes.length)*100).toFixed(1)}%)</li>`;
+                });
+                nodeIdTypeStr += '</ul></div>';
+                
+                // 边类型分析
+                const edgeRelations = {};
+                edges.forEach(edge => {
+                    edgeRelations[edge.relation] = (edgeRelations[edge.relation] || 0) + 1;
+                });
+                
+                let edgeRelationStr = '<div><strong>边关系类型数量:</strong> ' + Object.keys(edgeRelations).length + '</div>';
+                edgeRelationStr += '<div><strong>前5种边关系:</strong><ul class="list-disc list-inside ml-2 mt-1">';
+                Object.entries(edgeRelations)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 5)
+                    .forEach(([relation, count]) => {
+                        edgeRelationStr += `<li>${relation}: ${count}</li>`;
+                    });
+                edgeRelationStr += '</ul></div>';
+                
+                analysis += nodeIdTypeStr + edgeRelationStr + '</div>';
+                dataTypeAnalysis.innerHTML = analysis;
+            }
+        }
+        
+        // 显示API响应详情
+        function displayApiResponseDetails(response) {
+            const responseHeaders = document.getElementById('responseHeaders');
+            const responseStatus = document.getElementById('responseStatus');
+            const responseTime = document.getElementById('responseTime');
+            
+            // 响应头
+            const headers = response.headers.entries();
+            let headersStr = '';
+            for (const [key, value] of headers) {
+                headersStr += `${key}: ${value}\n`;
+            }
+            responseHeaders.textContent = headersStr;
+            
+            // 响应状态
+            responseStatus.innerHTML = `
+                <div class="flex items-center mb-1">
+                    <span class="font-medium">状态码:</span>
+                    <span class="ml-2 px-2 py-0.5 rounded ${response.ok ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}">${response.status}</span>
+                </div>
+                <div class="flex items-center">
+                    <span class="font-medium">状态:</span>
+                    <span class="ml-2">${response.ok ? '成功' : '失败'}</span>
+                </div>
+            `;
+            
+            // 响应时间
+            const endTime = Date.now();
+            const timeTaken = endTime - startTime;
+            responseTime.textContent = `响应时间: ${timeTaken}ms`;
+        }
+        
+        // 渲染简化图表
+        function renderSimpleChart(data) {
+            if (!data || !data.nodes || !data.edges) {
+                addError('没有可用的数据来渲染图表');
+                return;
+            }
+            
+            const chartInfo = document.getElementById('chartInfo');
+            chartInfo.textContent = `渲染中... 节点数: ${data.nodes.length}, 边数: ${data.edges.length}`;
+            
+            // 创建节点映射
+            const nodeMap = new Map();
+            data.nodes.forEach(node => {
+                nodeMap.set(node.name, node.id);
+            });
+            
+            // 转换边数据
+            const echartsEdges = data.edges.map(edge => {
+                const sourceId = nodeMap.get(edge.sourceNodeName);
+                const targetId = nodeMap.get(edge.targetNodeName);
+                
+                return {
+                    source: sourceId,
+                    target: targetId,
+                    name: edge.relation,
+                    label: {
+                        show: true,
+                        formatter: edge.relation,
+                        fontSize: 10
+                    },
+                    lineStyle: {
+                        color: edge.color || '#666',
+                        width: 2,
+                        opacity: 0.8
+                    }
+                };
+            }).filter(edge => edge.source && edge.target); // 只保留有效的边
+            
+            // 配置ECharts选项
+            const option = {
+                tooltip: {
+                    trigger: 'item',
+                    formatter: function(params) {
+                        if (params.dataType === 'edge') {
+                            return `关系: ${params.name}<br/>源节点: ${params.data.sourceName || '未知'}<br/>目标节点: ${params.data.targetName || '未知'}`;
+                        } else {
+                            return `节点: ${params.name}<br/>类型: ${params.data.type || '未知'}`;
+                        }
+                    }
+                },
+                animationDurationUpdate: 1500,
+                animationEasingUpdate: 'quinticInOut',
+                series: [
+                    {
+                        type: 'graph',
+                        layout: 'force',
+                        force: {
+                            repulsion: 100,
+                            edgeLength: 80
+                        },
+                        roam: true,
+                        label: {
+                            show: true,
+                            position: 'right',
+                            formatter: '{b}'
+                        },
+                        data: data.nodes,
+                        links: echartsEdges,
+                        lineStyle: {
+                            opacity: 0.9,
+                            width: 2,
+                            curveness: 0
+                        }
+                    }
+                ]
+            };
+            
+            // 设置选项并渲染
+            simpleChart.setOption(option);
+            chartInfo.textContent = `渲染完成: 节点数: ${data.nodes.length}, 有效边数: ${echartsEdges.length}`;
+            addLog(`简化图表渲染完成: 节点数=${data.nodes.length}, 边数=${echartsEdges.length}`, 'success');
+        }
+        
+        // 获取知识图谱数据
+        async function fetchGraphData() {
+            fetchDataBtn.disabled = true;
+            fetchDataBtn.innerHTML = '<i class="fa fa-spinner fa-spin mr-2"></i><span>获取中...</span>';
+            clearErrorList();
+            addLog('开始获取知识图谱数据...');
+            
+            try {
+                startTime = Date.now();
+                const response = await fetch('http://localhost:8080/api/knowledge-graph');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP错误! 状态码: ${response.status}`);
+                }
+                
+                // 显示API响应详情
+                displayApiResponseDetails(response);
+                
+                const data = await response.json();
+                graphData = data;
+                
+                // 提取节点和边
+                const nodes = data.nodes || [];
+                const edges = data.edges || [];
+                
+                // 创建节点映射
+                nodeMap = new Map();
+                const nodeNameToObjectMap = {};
+                
+                nodes.forEach(node => {
+                    // 确保ID是字符串类型，防止类型不匹配
+                    const stringId = typeof node.id === 'string' ? node.id : String(node.id);
+                    node.id = stringId; // 更新节点ID为字符串
+                    nodeMap.set(node.name, node);
+                    nodeNameToObjectMap[node.name] = node;
+                });
+                
+                // 验证边并统计
+                const validEdges = edges.filter(edge => {
+                    return nodeMap.has(edge.sourceNodeName) && nodeMap.has(edge.targetNodeName);
+                });
+                
+                const invalidEdges = edges.filter(edge => {
+                    return !nodeMap.has(edge.sourceNodeName) || !nodeMap.has(edge.targetNodeName);
+                });
+                
+                // 更新统计信息
+                updateStats(nodes, edges, validEdges, invalidEdges);
+                
+                // 显示详细信息
+                displayNodeMap(nodeNameToObjectMap);
+                displayEdgeValidation(edges, nodeNameToObjectMap);
+                displayRawDataStats(nodes, edges);
+                
+                // 检查无效边并添加警告
+                if (invalidEdges.length > 0) {
+                    addWarning(`发现 ${invalidEdges.length} 条无效边，它们的源节点或目标节点在节点列表中不存在`);
+                }
+                
+                addLog(`成功获取知识图谱数据: 节点数=${nodes.length}, 边数=${edges.length}, 有效边数=${validEdges.length}, 无效边数=${invalidEdges.length}`, 'success');
+                
+            } catch (error) {
+                addError(`获取数据失败: ${error.message}`);
+                console.error('获取知识图谱数据失败:', error);
+            } finally {
+                fetchDataBtn.disabled = false;
+                fetchDataBtn.innerHTML = '<i class="fa fa-refresh mr-2"></i><span>获取知识图谱数据</span>';
+            }
+        }
+        
+        // 执行完整性检查
+        function runIntegrityCheck() {
+            if (!graphData || !nodeMap) {
+                addError('请先获取知识图谱数据');
+                return;
+            }
+            
+            debugBtn.disabled = true;
+            debugBtn.innerHTML = '<i class="fa fa-spinner fa-spin mr-2"></i><span>检查中...</span>';
+            clearErrorList();
+            addLog('开始执行完整性检查...');
+            
+            const nodes = graphData.nodes || [];
+            const edges = graphData.edges || [];
+            
+            // 检查1: 节点ID唯一性
+            const nodeIds = new Set();
+            let duplicateNodeIds = [];
+            
+            nodes.forEach(node => {
+                if (nodeIds.has(node.id)) {
+                    duplicateNodeIds.push(node.id);
+                } else {
+                    nodeIds.add(node.id);
+                }
+            });
+            
+            if (duplicateNodeIds.length > 0) {
+                addError(`发现 ${duplicateNodeIds.length} 个重复的节点ID: ${[...new Set(duplicateNodeIds)].join(', ')}`);
+            } else {
+                addLog('所有节点ID都是唯一的', 'success');
+            }
+            
+            // 检查2: 节点名称唯一性
+            const nodeNames = new Set();
+            let duplicateNodeNames = [];
+            
+            nodes.forEach(node => {
+                if (nodeNames.has(node.name)) {
+                    duplicateNodeNames.push(node.name);
+                } else {
+                    nodeNames.add(node.name);
+                }
+            });
+            
+            if (duplicateNodeNames.length > 0) {
+                addWarning(`发现 ${duplicateNodeNames.length} 个重复的节点名称: ${[...new Set(duplicateNodeNames)].slice(0, 5).join(', ')}${duplicateNodeNames.length > 5 ? '...' : ''}`);
+            } else {
+                addLog('所有节点名称都是唯一的', 'success');
+            }
+            
+            // 检查3: 边的源节点和目标节点存在性
+            let invalidSourceEdges = 0;
+            let invalidTargetEdges = 0;
+            let invalidEdgeDetails = [];
+            
+            edges.forEach(edge => {
+                const hasSource = nodeMap.has(edge.sourceNodeName);
+                const hasTarget = nodeMap.has(edge.targetNodeName);
+                
+                if (!hasSource) {
+                    invalidSourceEdges++;
+                    if (invalidEdgeDetails.length < 10) {
+                        invalidEdgeDetails.push(`边ID: ${edge.id}, 关系: ${edge.relation}, 缺失源节点: ${edge.sourceNodeName}`);
+                    }
+                }
+                
+                if (!hasTarget) {
+                    invalidTargetEdges++;
+                    if (invalidEdgeDetails.length < 10) {
+                        invalidEdgeDetails.push(`边ID: ${edge.id}, 关系: ${edge.relation}, 缺失目标节点: ${edge.targetNodeName}`);
+                    }
+                }
+            });
+            
+            if (invalidSourceEdges > 0 || invalidTargetEdges > 0) {
+                addError(`发现 ${invalidSourceEdges} 条边的源节点不存在，${invalidTargetEdges} 条边的目标节点不存在`);
+                
+                // 显示前10条无效边的详细信息
+                invalidEdgeDetails.forEach(detail => {
+                    addWarning(detail);
+                });
+            } else {
+                addLog('所有边的源节点和目标节点都存在于节点列表中', 'success');
+            }
+            
+            // 检查4: 节点ID类型一致性
+            const nodeIdTypes = new Set();
+            nodes.forEach(node => {
+                nodeIdTypes.add(typeof node.id);
+            });
+            
+            if (nodeIdTypes.size > 1) {
+                addWarning(`节点ID存在多种类型: ${Array.from(nodeIdTypes).join(', ')}`);
+            } else {
+                addLog(`所有节点ID类型一致: ${Array.from(nodeIdTypes)[0]}`, 'success');
+            }
+            
+            // 检查5: 边数据完整性
+            let edgesWithMissingFields = 0;
+            
+            edges.forEach(edge => {
+                const requiredFields = ['sourceNodeName', 'targetNodeName', 'relation'];
+                const missingFields = requiredFields.filter(field => !edge[field]);
+                
+                if (missingFields.length > 0) {
+                    edgesWithMissingFields++;
+                }
+            });
+            
+            if (edgesWithMissingFields > 0) {
+                addWarning(`发现 ${edgesWithMissingFields} 条边缺少必要字段`);
+            } else {
+                addLog('所有边都包含必要的字段', 'success');
+            }
+            
+            addLog('完整性检查完成', 'success');
+            debugBtn.disabled = false;
+            debugBtn.innerHTML = '<i class="fa fa-bug mr-2"></i><span>执行完整性检查</span>';
+        }
+        
+        // 切换选项卡
+        function setupTabs() {
+            tabBtns.forEach(btn => {
+                btn.addEventListener('click', function() {
+                    // 移除所有选项卡的活动状态
+                    tabBtns.forEach(b => {
+                        b.classList.remove('text-primary', 'border-b-2', 'border-primary');
+                        b.classList.add('text-gray-500');
+                    });
+                    
+                    // 添加当前选项卡的活动状态
+                    this.classList.remove('text-gray-500');
+                    this.classList.add('text-primary', 'border-b-2', 'border-primary');
+                    
+                    // 隐藏所有内容
+                    tabContents.forEach(content => {
+                        content.classList.add('hidden');
+                    });
+                    
+                    // 显示当前内容
+                    const targetId = this.getAttribute('data-target');
+                    document.getElementById(targetId).classList.remove('hidden');
+                });
+            });
+        }
+        
+        // 初始化
+        function init() {
+            initSimpleChart();
+            setupTabs();
+            
+            // 绑定事件
+            fetchDataBtn.addEventListener('click', fetchGraphData);
+            debugBtn.addEventListener('click', runIntegrityCheck);
+            renderSimpleBtn.addEventListener('click', function() {
+                if (graphData) {
+                    renderSimpleChart(graphData);
+                } else {
+                    addError('请先获取知识图谱数据');
+                }
+            });
+            
+            clearLogs.addEventListener('click', function() {
+                const debugLogs = document.getElementById('debugLogs');
+                debugLogs.innerHTML = '<span class="text-gray-400">// 调试日志已清空\n// 点击上方按钮开始调试</span>';
+            });
+            
+            // 初始提示
+            addLog('调试工具已初始化，请点击上方按钮开始操作');
+        }
+        
+        // 页面加载完成后初始化
+        window.addEventListener('DOMContentLoaded', init);
+    </script>
+</body>
+</html>

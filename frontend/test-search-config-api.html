@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>搜索配置API测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+        }
+        .button {
+            padding: 8px 16px;
+            background-color: #4285F4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        .button:hover {
+            background-color: #3367D6;
+        }
+        .result {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f5f5f5;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            font-family: 'Courier New', Courier, monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>搜索配置API测试</h1>
+    
+    <div>
+        <button class="button" onclick="testGetAllSearchConfigs()">测试获取所有搜索配置</button>
+        <button class="button" onclick="testGetSearchConfigById()">测试获取单个搜索配置</button>
+        <button class="button" onclick="testCreateSearchConfig()">测试创建搜索配置</button>
+    </div>
+    
+    <div class="result" id="result"></div>
+    
+    <script>
+        const resultElement = document.getElementById('result');
+        
+        // 测试获取所有搜索配置
+        async function testGetAllSearchConfigs() {
+            resultElement.textContent = '正在请求...';
+            try {
+                const startTime = new Date().getTime();
+                const response = await fetch('/api/search-configs', {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                const endTime = new Date().getTime();
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP错误! 状态码: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                resultElement.textContent = `请求成功 (耗时: ${endTime - startTime}ms)\n\nHTTP状态码: ${response.status}\n响应头: ${JSON.stringify([...response.headers.entries()], null, 2)}\n\n响应数据类型: ${Array.isArray(data) ? '数组' : typeof data}\n\n响应数据: ${JSON.stringify(data, null, 2)}`;
+            } catch (error) {
+                resultElement.textContent = `请求失败:\n${error.message}`;
+            }
+        }
+        
+        // 测试获取单个搜索配置
+        async function testGetSearchConfigById() {
+            resultElement.textContent = '正在请求...';
+            try {
+                const id = prompt('请输入要测试的搜索配置ID:', '1');
+                if (!id) return;
+                
+                const startTime = new Date().getTime();
+                const response = await fetch(`/api/search-configs/${id}`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                const endTime = new Date().getTime();
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP错误! 状态码: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                resultElement.textContent = `请求成功 (耗时: ${endTime - startTime}ms)\n\nHTTP状态码: ${response.status}\n\n响应数据类型: ${typeof data}\n\n响应数据: ${JSON.stringify(data, null, 2)}`;
+            } catch (error) {
+                resultElement.textContent = `请求失败:\n${error.message}`;
+            }
+        }
+        
+        // 测试创建搜索配置
+        async function testCreateSearchConfig() {
+            resultElement.textContent = '正在请求...';
+            try {
+                const configData = {
+                    databaseName: "test_db",
+                    tableName: "test_table",
+                    searchFields: '["field1", "field2"]',
+                    description: "测试搜索配置"
+                };
+                
+                const startTime = new Date().getTime();
+                const response = await fetch('/api/search-configs', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(configData)
+                });
+                const endTime = new Date().getTime();
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP错误! 状态码: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                resultElement.textContent = `请求成功 (耗时: ${endTime - startTime}ms)\n\nHTTP状态码: ${response.status}\n\n响应数据: ${JSON.stringify(data, null, 2)}`;
+            } catch (error) {
+                resultElement.textContent = `请求失败:\n${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>

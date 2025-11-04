@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>主题匹配测试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            margin-bottom: 30px;
+        }
+        h1, h2 {
+            color: #333;
+        }
+        button {
+            background-color: #1890ff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #40a9ff;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 16px;
+            border-radius: 4px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th {
+            background-color: #f0f0f0;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .success {
+            color: #52c41a;
+        }
+        .failure {
+            color: #ff4d4f;
+        }
+    </style>
+    <script src="https://unpkg.com/axios/dist/axios.min.js"></script>
+</head>
+<body>
+    <h1>主题匹配测试</h1>
+    
+    <div class="container">
+        <button id="loadData">加载数据并测试匹配</button>
+        <button id="clearData" style="margin-left: 10px;">清空数据</button>
+    </div>
+    
+    <div class="container">
+        <h2>测试结果统计</h2>
+        <div id="stats"></div>
+    </div>
+    
+    <div class="container">
+        <h2>主题数据</h2>
+        <pre id="themesData"></pre>
+    </div>
+    
+    <div class="container">
+        <h2>节点数据</h2>
+        <pre id="nodesData"></pre>
+    </div>
+    
+    <div class="container">
+        <h2>节点主题匹配情况</h2>
+        <table id="matchResults">
+            <thead>
+                <tr>
+                    <th>节点ID</th>
+                    <th>节点名称</th>
+                    <th>获取的主题ID</th>
+                    <th>匹配到的主题名称</th>
+                    <th>匹配状态</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+
+    <script>
+        // 配置axios基础URL
+        const API_BASE_URL = '/api';
+        const axiosInstance = axios.create({
+            baseURL: API_BASE_URL,
+            timeout: 10000,
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+
+        // 匹配主题的函数（与GraphManager.vue中使用的逻辑相同）
+        function matchTheme(node, themes) {
+            // 尝试从node中获取themeId
+            let themeId = '';
+            
+            // 特别处理theme对象的情况
+            if (node.theme && typeof node.theme === 'object' && node.theme.id) {
+                themeId = node.theme.id;
+            } else {
+                themeId = node.themeId || node.theme_id || (typeof node.theme === 'string' ? node.theme : '') || '';
+            }
+            
+            // 确保比较时都是字符串类型
+            const theme = themes.find(t => String(t.id) === String(themeId));
+            
+            return {
+                themeId: themeId,
+                theme: theme,
+                themeName: theme ? theme.name : '未匹配',
+                isMatched: !!theme
+            };
+        }
+
+        // 加载数据并测试匹配
+        document.getElementById('loadData').addEventListener('click', async () => {
+            try {
+                // 显示加载状态
+                document.getElementById('stats').innerHTML = '<p>正在加载数据...</p>';
+                document.getElementById('themesData').textContent = '加载中...';
+                document.getElementById('nodesData').textContent = '加载中...';
+                document.getElementById('matchResults').querySelector('tbody').innerHTML = '';
+
+                // 并行请求主题和节点数据
+                const [themesResponse, nodesResponse] = await Promise.all([
+                    axiosInstance.get('/themes'),
+                    axiosInstance.get('/nodes')
+                ]);
+
+                const themes = themesResponse.data;
+                const nodes = nodesResponse.data;
+
+                // 显示原始数据
+                document.getElementById('themesData').textContent = JSON.stringify(themes, null, 2);
+                document.getElementById('nodesData').textContent = JSON.stringify(nodes, null, 2);
+
+                // 测试每个节点的主题匹配
+                const matchResults = [];
+                let successCount = 0;
+                let failureCount = 0;
+
+                for (const node of nodes) {
+                    const result = matchTheme(node, themes);
+                    matchResults.push({ node, ...result });
+                    
+                    if (result.isMatched) {
+                        successCount++;
+                    } else {
+                        failureCount++;
+                    }
+                }
+
+                // 更新统计信息
+                document.getElementById('stats').innerHTML = `
+                    <p>总节点数: ${nodes.length}</p>
+                    <p>匹配成功: <span class="success">${successCount}</span></p>
+                    <p>匹配失败: <span class="failure">${failureCount}</span></p>
+                `;
+
+                // 更新匹配结果表格
+                const tableBody = document.getElementById('matchResults').querySelector('tbody');
+                tableBody.innerHTML = '';
+
+                for (const result of matchResults) {
+                    const row = document.createElement('tr');
+                    row.innerHTML = `
+                        <td>${result.node.id}</td>
+                        <td>${result.node.name || '-'}</td>
+                        <td>${result.themeId || '-'}</td>
+                        <td>${result.themeName}</td>
+                        <td class="${result.isMatched ? 'success' : 'failure'}">
+                            ${result.isMatched ? '成功' : '失败'}
+                        </td>
+                    `;
+                    tableBody.appendChild(row);
+                }
+
+            } catch (error) {
+                console.error('加载数据或测试匹配时出错:', error);
+                document.getElementById('stats').innerHTML = `<p class="failure">加载数据时出错: ${error.message}</p>`;
+            }
+        });
+
+        // 清空数据
+        document.getElementById('clearData').addEventListener('click', () => {
+            document.getElementById('stats').innerHTML = '';
+            document.getElementById('themesData').textContent = '';
+            document.getElementById('nodesData').textContent = '';
+            document.getElementById('matchResults').querySelector('tbody').innerHTML = '';
+        });
+    </script>
+</body>
+</html>

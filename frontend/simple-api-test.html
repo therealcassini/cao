@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>后端API简单测试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #42b983;
+            padding-bottom: 10px;
+        }
+        pre {
+            background-color: #f8f8f8;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 600px;
+        }
+        button {
+            background-color: #42b983;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 16px;
+            margin-bottom: 20px;
+        }
+        button:hover {
+            background-color: #3aa876;
+        }
+        .endpoint {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f8f8f8;
+            border-radius: 4px;
+        }
+        .stats {
+            display: flex;
+            margin-bottom: 20px;
+            gap: 20px;
+        }
+        .stat-item {
+            background: #f8f8f8;
+            padding: 15px 20px;
+            border-radius: 4px;
+            font-size: 18px;
+            font-weight: bold;
+        }
+        .stat-label {
+            display: block;
+            font-size: 14px;
+            font-weight: normal;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>后端API简单测试</h1>
+        <p>这个页面用于直接测试后端API的响应情况，帮助排查知识图谱边不显示的问题。</p>
+        
+        <div class="endpoint">
+            <h3>测试接口: /api/knowledge-graph</h3>
+            <button id="testApiBtn">测试知识图谱API</button>
+        </div>
+        
+        <div class="stats">
+            <div class="stat-item">
+                <span id="nodeCount">0</span>
+                <span class="stat-label">节点数</span>
+            </div>
+            <div class="stat-item">
+                <span id="edgeCount">0</span>
+                <span class="stat-label">边数</span>
+            </div>
+            <div class="stat-item">
+                <span id="responseTime">--</span>
+                <span class="stat-label">响应时间(ms)</span>
+            </div>
+        </div>
+        
+        <h3>API响应结果:</h3>
+        <pre id="apiResponse">点击上方按钮测试API...</pre>
+        
+        <h3>响应头信息:</h3>
+        <pre id="responseHeaders">暂无数据</pre>
+        
+        <h3>请求信息:</h3>
+        <pre id="requestInfo">暂无数据</pre>
+    </div>
+    
+    <script>
+        document.getElementById('testApiBtn').addEventListener('click', async function() {
+            const responseElement = document.getElementById('apiResponse');
+            const headersElement = document.getElementById('responseHeaders');
+            const requestInfoElement = document.getElementById('requestInfo');
+            const nodeCountElement = document.getElementById('nodeCount');
+            const edgeCountElement = document.getElementById('edgeCount');
+            const responseTimeElement = document.getElementById('responseTime');
+            
+            responseElement.textContent = '正在发送请求...';
+            headersElement.textContent = '暂无数据';
+            requestInfoElement.textContent = '暂无数据';
+            nodeCountElement.textContent = '0';
+            edgeCountElement.textContent = '0';
+            responseTimeElement.textContent = '--';
+            
+            try {
+                const startTime = performance.now();
+                const url = '/api/knowledge-graph';
+                const requestInfo = `请求URL: ${url}\n请求方法: GET\n请求时间: ${new Date().toLocaleTimeString()}`;
+                
+                requestInfoElement.textContent = requestInfo;
+                console.log(requestInfo);
+                
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json'
+                    },
+                    credentials: 'include'
+                });
+                
+                const endTime = performance.now();
+                const responseTime = Math.round(endTime - startTime);
+                responseTimeElement.textContent = responseTime;
+                
+                // 获取响应头
+                const headers = {};
+                response.headers.forEach((value, key) => {
+                    headers[key] = value;
+                });
+                headersElement.textContent = JSON.stringify(headers, null, 2);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP错误! 状态码: ${response.status} ${response.statusText}`);
+                }
+                
+                const data = await response.json();
+                responseElement.textContent = JSON.stringify(data, null, 2);
+                
+                // 更新统计信息
+                nodeCountElement.textContent = data.nodes ? data.nodes.length : 0;
+                edgeCountElement.textContent = data.edges ? data.edges.length : 0;
+                
+                console.log('API测试成功:', data);
+                console.log(`节点数: ${data.nodes ? data.nodes.length : 0}`);
+                console.log(`边数: ${data.edges ? data.edges.length : 0}`);
+                
+                // 如果有数据，显示节点和边的详细信息
+                if (data.nodes && data.nodes.length > 0) {
+                    console.log('\n节点列表:');
+                    data.nodes.forEach(node => {
+                        console.log(`节点ID: ${node.id}, 名称: ${node.name}`);
+                    });
+                }
+                
+                if (data.edges && data.edges.length > 0) {
+                    console.log('\n边列表:');
+                    data.edges.forEach(edge => {
+                        console.log(`边ID: ${edge.id}, 源节点: ${edge.sourceNodeName}, 目标节点: ${edge.targetNodeName}, 关系: ${edge.relation}`);
+                    });
+                }
+            } catch (error) {
+                responseElement.textContent = `请求失败: ${error.message}\n\n请检查后端服务器是否正常运行。`;
+                responseElement.style.color = 'red';
+                console.error('API测试失败:', error);
+            }
+        });
+    </script>
+</body>
+</html>

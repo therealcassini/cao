@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>直接测试知识图谱API</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        button {
+            padding: 8px 16px;
+            background-color: #4285F4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background-color: #3367d6;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            max-height: 500px;
+            white-space: pre-wrap;
+        }
+        .test-section {
+            margin-bottom: 30px;
+        }
+    </style>
+</head>
+<body>
+    <h1>直接测试知识图谱API</h1>
+    
+    <div class="test-section">
+        <h2>1. 测试完整图谱API (/api/graph/full)</h2>
+        <button id="testFullGraph">调用API</button>
+        <pre id="fullGraphResult">准备就绪...</pre>
+    </div>
+    
+    <div class="test-section">
+        <h2>2. 测试通过代理的完整图谱API</h2>
+        <button id="testProxyFullGraph">通过代理调用</button>
+        <pre id="proxyFullGraphResult">准备就绪...</pre>
+    </div>
+    
+    <div class="test-section">
+        <h2>3. 测试主题列表API (/api/themes)</h2>
+        <button id="testThemes">调用API</button>
+        <pre id="themesResult">准备就绪...</pre>
+    </div>
+    
+    <div class="test-section">
+        <h2>4. 测试测试端点 (/api/test/sample-graph)</h2>
+        <button id="testSampleGraph">调用API</button>
+        <pre id="sampleGraphResult">准备就绪...</pre>
+    </div>
+
+    <script>
+        // 工具函数：显示结果到指定元素
+        function displayResult(elementId, data) {
+            const element = document.getElementById(elementId);
+            try {
+                element.textContent = JSON.stringify(data, null, 2);
+            } catch (e) {
+                element.textContent = '无法格式化数据: ' + e.message;
+            }
+        }
+        
+        // 工具函数：处理fetch请求
+        async function makeFetchRequest(url, resultElementId) {
+            const element = document.getElementById(resultElementId);
+            element.textContent = '正在请求...';
+            
+            try {
+                console.log('发起请求:', url);
+                const startTime = Date.now();
+                const response = await fetch(url);
+                const endTime = Date.now();
+                
+                console.log('请求完成，耗时:', endTime - startTime, 'ms, 状态码:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP错误! 状态码: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('请求成功，数据:', data);
+                displayResult(resultElementId, data);
+                
+                return data;
+            } catch (error) {
+                console.error('请求失败:', error);
+                element.textContent = `请求失败: ${error.message}\n\n请查看控制台获取详细信息`;
+            }
+        }
+        
+        // 绑定按钮事件
+        document.getElementById('testFullGraph').addEventListener('click', () => {
+            // 直接访问后端API，不经过Vite代理
+            makeFetchRequest('http://localhost:8080/api/graph/full', 'fullGraphResult');
+        });
+        
+        document.getElementById('testProxyFullGraph').addEventListener('click', () => {
+            // 通过Vite代理访问后端API
+            makeFetchRequest('/api/graph/full', 'proxyFullGraphResult');
+        });
+        
+        document.getElementById('testThemes').addEventListener('click', () => {
+            makeFetchRequest('/api/themes', 'themesResult');
+        });
+        
+        document.getElementById('testSampleGraph').addEventListener('click', () => {
+            makeFetchRequest('/api/test/sample-graph', 'sampleGraphResult');
+        });
+        
+        // 页面加载时自动执行测试
+        window.addEventListener('load', () => {
+            console.log('页面加载完成，开始自动测试API...');
+            // 先测试示例图数据
+            makeFetchRequest('/api/test/sample-graph', 'sampleGraphResult');
+        });
+    </script>
+</body>
+</html>

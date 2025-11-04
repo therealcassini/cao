@@ -1,0 +1,6 @@
+{
+  "databaseName": "test_db",
+  "tableName": "test_table",
+  "searchFields": "[\"field1\", \"field2\"]",
+  "description": "Test search config"
+}

@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>简单边主题查询测试</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        h1 {
+            color: #2c3e50;
+            border-bottom: 1px solid #eee;
+            padding-bottom: 10px;
+        }
+        .test-section {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #4285F4;
+            color: white;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #3367d6;
+        }
+        .result {
+            margin-top: 10px;
+            padding: 10px;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        pre {
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            margin: 0;
+        }
+        .error {
+            color: #e74c3c;
+        }
+        .success {
+            color: #27ae60;
+        }
+        .info {
+            color: #3498db;
+        }
+    </style>
+</head>
+<body>
+    <h1>简单边主题查询API测试</h1>
+    
+    <div class="test-section">
+        <h3>测试1: 直接调用API (主题ID=1)</h3>
+        <button onclick="testWithThemeId(1)">查询主题ID=1的边</button>
+        <div class="result">
+            <pre id="result1">等待查询...</pre>
+        </div>
+    </div>
+    
+    <div class="test-section">
+        <h3>测试2: 检查API路径 (直接访问)</h3>
+        <a href="http://localhost:8080/api/edges/theme/1" target="_blank">打开 http://localhost:8080/api/edges/theme/1</a>
+    </div>
+    
+    <div class="test-section">
+        <h3>测试3: 检查其他API端点</h3>
+        <button onclick="testOtherApi('/api/themes')">测试 /api/themes</button>
+        <button onclick="testOtherApi('/api/edges')">测试 /api/edges</button>
+        <div class="result">
+            <pre id="result3">等待查询...</pre>
+        </div>
+    </div>
+    
+    <script>
+        const baseUrl = 'http://localhost:8080/api';
+        
+        function testWithThemeId(themeId) {
+            const resultElement = document.getElementById('result1');
+            resultElement.textContent = '查询中...';
+            
+            console.log(`准备调用: ${baseUrl}/edges/theme/${themeId}`);
+            
+            axios.get(`${baseUrl}/edges/theme/${themeId}`)
+                .then(response => {
+                    console.log('API响应:', response);
+                    resultElement.innerHTML = `<span class="success">请求成功 (状态码: ${response.status}):</span>\n${JSON.stringify(response.data, null, 2)}`;
+                })
+                .catch(error => {
+                    console.error('API错误:', error);
+                    if (error.response) {
+                        resultElement.innerHTML = `<span class="error">请求失败 (状态码: ${error.response.status}):</span>\n${JSON.stringify(error.response.data, null, 2)}`;
+                    } else if (error.request) {
+                        resultElement.innerHTML = '<span class="error">请求失败: 无法连接到服务器</span>';
+                    } else {
+                        resultElement.innerHTML = `<span class="error">请求失败: ${error.message}</span>`;
+                    }
+                });
+        }
+        
+        function testOtherApi(endpoint) {
+            const resultElement = document.getElementById('result3');
+            resultElement.textContent = '查询中...';
+            
+            console.log(`准备调用: ${baseUrl}${endpoint}`);
+            
+            axios.get(`${baseUrl}${endpoint}`)
+                .then(response => {
+                    console.log('API响应:', response);
+                    resultElement.innerHTML = `<span class="success">${endpoint} 请求成功 (状态码: ${response.status}):</span>\n${JSON.stringify(response.data, null, 2)}`;
+                })
+                .catch(error => {
+                    console.error('API错误:', error);
+                    resultElement.innerHTML = `<span class="error">${endpoint} 请求失败</span>`;
+                });
+        }
+        
+        // 页面加载时自动测试
+        window.addEventListener('load', () => {
+            // 延迟3秒后自动测试
+            setTimeout(() => {
+                console.log('自动开始测试');
+                testOtherApi('/themes'); // 先测试主题API
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,43 @@
+{
+  "timestamp": "2025-10-07T03:13:58.421Z",
+  "themeCount": 3,
+  "nodeCount": 141,
+  "matchingResult": {
+    "matched": 141,
+    "unmatched": 0,
+    "unmatchedNodes": []
+  },
+  "sampleNode": {
+    "id": 8,
+    "theme": {
+      "id": 1,
+      "name": "凡人修仙传",
+      "description": "知识图谱中的人物节点",
+      "defaultNodeColor": "#4285F4",
+      "defaultNodeSize": 25,
+      "defaultNodeIcon": "👤",
+      "defaultEdgeColor": "#999999",
+      "defaultEdgeWidth": 2,
+      "createdAt": "2025-09-19T01:29:19.000+00:00"
+    },
+    "name": "韩立",
+    "properties": "{\"修为\": \"元婴中期\", \"灵根\": \"木\", \"绰号\": \"厉飞雨\", \"本命法宝\": \"青竹蜂云剑\"}",
+    "color": "#2E8B57",
+    "size": 45,
+    "icon": "👑",
+    "x": -100,
+    "y": 0,
+    "createdAt": "2025-09-29T09:52:57.000+00:00"
+  },
+  "sampleTheme": {
+    "id": 1,
+    "name": "凡人修仙传",
+    "description": "知识图谱中的人物节点",
+    "defaultNodeColor": "#4285F4",
+    "defaultNodeSize": 25,
+    "defaultNodeIcon": "👤",
+    "defaultEdgeColor": "#999999",
+    "defaultEdgeWidth": 2,
+    "createdAt": "2025-09-19T01:29:19.000+00:00"
+  }
+}

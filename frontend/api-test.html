@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API测试页面</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 8px 16px;
+            background-color: #4285F4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #3367d6;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            max-height: 500px;
+        }
+    </style>
+</head>
+<body>
+    <h1>API测试页面</h1>
+    
+    <div class="container">
+        <h2>测试获取完整知识图谱</h2>
+        <button id="testFullGraph">调用 /api/graph/full</button>
+        <pre id="fullGraphResult"></pre>
+    </div>
+    
+    <div class="container">
+        <h2>测试获取所有主题</h2>
+        <button id="testThemes">调用 /api/themes</button>
+        <pre id="themesResult"></pre>
+    </div>
+    
+    <div class="container">
+        <h2>测试获取所有节点</h2>
+        <button id="testNodes">调用 /api/nodes</button>
+        <pre id="nodesResult"></pre>
+    </div>
+    
+    <div class="container">
+        <h2>测试获取所有边</h2>
+        <button id="testEdges">调用 /api/edges</button>
+        <pre id="edgesResult"></pre>
+    </div>
+    
+    <div class="container">
+        <h2>测试连接</h2>
+        <button id="testConnection">调用 /api/test/connection</button>
+        <pre id="connectionResult"></pre>
+    </div>
+    
+    <div class="container">
+        <h2>测试获取示例图数据</h2>
+        <button id="testSampleGraph">调用 /api/test/sample-graph</button>
+        <pre id="sampleGraphResult"></pre>
+    </div>
+
+    <script>
+        // 设置API基础URL为相对路径，通过Vite代理处理
+        const API_BASE_URL = '/';
+        
+        // 工具函数：格式化JSON并显示在指定元素中
+        function displayResult(elementId, data) {
+            const element = document.getElementById(elementId);
+            try {
+                element.textContent = JSON.stringify(data, null, 2);
+            } catch (e) {
+                element.textContent = '无法格式化数据: ' + e.message;
+            }
+        }
+        
+        // 工具函数：处理API请求
+        async function makeRequest(url, resultElementId) {
+            const resultElement = document.getElementById(resultElementId);
+            resultElement.textContent = '正在请求...';
+            
+            try {
+                const response = await axios.get(url);
+                displayResult(resultElementId, response.data);
+            } catch (error) {
+                console.error('请求失败:', error);
+                resultElement.textContent = '请求失败: ' + (error.response?.data?.message || error.message);
+            }
+        }
+        
+        // 绑定按钮事件
+        document.getElementById('testFullGraph').addEventListener('click', () => {
+            makeRequest(`${API_BASE_URL}/api/graph/full`, 'fullGraphResult');
+        });
+        
+        document.getElementById('testThemes').addEventListener('click', () => {
+            makeRequest(`${API_BASE_URL}/api/themes`, 'themesResult');
+        });
+        
+        document.getElementById('testNodes').addEventListener('click', () => {
+            makeRequest(`${API_BASE_URL}/api/nodes`, 'nodesResult');
+        });
+        
+        document.getElementById('testEdges').addEventListener('click', () => {
+            makeRequest(`${API_BASE_URL}/api/edges`, 'edgesResult');
+        });
+        
+        document.getElementById('testConnection').addEventListener('click', () => {
+            makeRequest(`${API_BASE_URL}/api/test/connection`, 'connectionResult');
+        });
+        
+        document.getElementById('testSampleGraph').addEventListener('click', () => {
+            makeRequest(`${API_BASE_URL}/api/test/sample-graph`, 'sampleGraphResult');
+        });
+        
+        // 页面加载时自动执行所有API测试
+        window.addEventListener('load', () => {
+            console.log('页面加载完成，开始自动测试API...');
+            
+            // 首先测试连接是否正常
+            makeRequest(`${API_BASE_URL}/api/test/connection`, 'connectionResult');
+            
+            // 延迟测试示例图数据
+            setTimeout(() => {
+                makeRequest(`${API_BASE_URL}/api/test/sample-graph`, 'sampleGraphResult');
+            }, 1000);
+            
+            // 延迟测试其他API，避免请求过于集中
+            setTimeout(() => {
+                makeRequest(`${API_BASE_URL}/api/themes`, 'themesResult');
+            }, 2000);
+            
+            setTimeout(() => {
+                makeRequest(`${API_BASE_URL}/api/nodes`, 'nodesResult');
+            }, 3000);
+            
+            setTimeout(() => {
+                makeRequest(`${API_BASE_URL}/api/edges`, 'edgesResult');
+            }, 4000);
+            
+            // 最后测试完整知识图谱API
+            setTimeout(() => {
+                makeRequest(`${API_BASE_URL}/api/graph/full`, 'fullGraphResult');
+            }, 5000);
+        });
+    </script>
+</body>
+</html>

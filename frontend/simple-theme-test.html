@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>节点主题匹配测试</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    h1 {
+      color: #1890ff;
+    }
+    button {
+      padding: 8px 16px;
+      background-color: #1890ff;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-right: 10px;
+    }
+    button:hover {
+      background-color: #40a9ff;
+    }
+    pre {
+      background-color: #f5f5f5;
+      padding: 15px;
+      border-radius: 4px;
+      overflow-x: auto;
+      white-space: pre-wrap;
+      max-height: 500px;
+      overflow-y: auto;
+    }
+    .section {
+      margin-bottom: 20px;
+    }
+    .error {
+      color: #ff4d4f;
+    }
+    .success {
+      color: #52c41a;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin-top: 10px;
+    }
+    th, td {
+      border: 1px solid #e8e8e8;
+      padding: 8px;
+      text-align: left;
+    }
+    th {
+      background-color: #fafafa;
+      font-weight: 500;
+    }
+  </style>
+</head>
+<body>
+  <h1>节点主题匹配测试</h1>
+  
+  <div class="section">
+    <button id="loadData">加载数据并测试</button>
+    <button id="clear">清空结果</button>
+  </div>
+  
+  <div class="section">
+    <h2>测试结果</h2>
+    <div id="resultSummary"></div>
+  </div>
+  
+  <div class="section">
+    <h2>主题数据</h2>
+    <pre id="themesData">(点击上方按钮加载数据)</pre>
+  </div>
+  
+  <div class="section">
+    <h2>节点数据</h2>
+    <pre id="nodesData">(点击上方按钮加载数据)</pre>
+  </div>
+  
+  <div class="section">
+    <h2>节点主题匹配情况</h2>
+    <table id="matchingTable">
+      <thead>
+        <tr>
+          <th>节点ID</th>
+          <th>节点名称</th>
+          <th>主题ID</th>
+          <th>匹配到的主题名称</th>
+          <th>匹配状态</th>
+        </tr>
+      </thead>
+      <tbody id="matchingTableBody">
+        <tr><td colspan="5" style="text-align: center;">(点击上方按钮加载数据)</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    // DOM元素
+    const loadDataBtn = document.getElementById('loadData');
+    const clearBtn = document.getElementById('clear');
+    const themesDataEl = document.getElementById('themesData');
+    const nodesDataEl = document.getElementById('nodesData');
+    const resultSummaryEl = document.getElementById('resultSummary');
+    const matchingTableBodyEl = document.getElementById('matchingTableBody');
+    
+    // 加载数据并测试
+    loadDataBtn.addEventListener('click', async () => {
+      try {
+        // 设置按钮状态
+        loadDataBtn.disabled = true;
+        loadDataBtn.textContent = '加载中...';
+        
+        // 加载主题数据
+        themesDataEl.textContent = '加载主题数据...';
+        const themesResponse = await fetch('/api/themes');
+        if (!themesResponse.ok) {
+          throw new Error(`加载主题数据失败: ${themesResponse.status}`);
+        }
+        const themes = await themesResponse.json();
+        themesDataEl.textContent = JSON.stringify(themes, null, 2);
+        
+        // 加载节点数据
+        nodesDataEl.textContent = '加载节点数据...';
+        const nodesResponse = await fetch('/api/nodes');
+        if (!nodesResponse.ok) {
+          throw new Error(`加载节点数据失败: ${nodesResponse.status}`);
+        }
+        const nodes = await nodesResponse.json();
+        nodesDataEl.textContent = JSON.stringify(nodes, null, 2);
+        
+        // 执行主题匹配测试
+        const testResult = testThemeMatching(nodes, themes);
+        
+        // 显示测试结果
+        displayTestResult(testResult);
+        
+      } catch (error) {
+        console.error('测试失败:', error);
+        resultSummaryEl.innerHTML = `<div class="error">测试失败: ${error.message}</div>`;
+      } finally {
+        // 恢复按钮状态
+        loadDataBtn.disabled = false;
+        loadDataBtn.textContent = '加载数据并测试';
+      }
+    });
+    
+    // 清空结果
+    clearBtn.addEventListener('click', () => {
+      themesDataEl.textContent = '(点击上方按钮加载数据)';
+      nodesDataEl.textContent = '(点击上方按钮加载数据)';
+      resultSummaryEl.innerHTML = '';
+      matchingTableBodyEl.innerHTML = '<tr><td colspan="5" style="text-align: center;">(点击上方按钮加载数据)</td></tr>';
+    });
+    
+    // 执行主题匹配测试
+    function testThemeMatching(nodes, themes) {
+      const result = {
+        totalNodes: nodes.length,
+        matchedNodes: 0,
+        unmatchedNodes: 0,
+        matchingDetails: []
+      };
+      
+      nodes.forEach(node => {
+        // 尝试从不同字段获取themeId
+        let themeId = node.themeId || node.theme_id || node.theme || '';
+        
+        // 执行匹配（使用与GraphManager.vue中相同的逻辑）
+        const theme = themes.find(t => String(t.id) === String(themeId));
+        
+        // 记录匹配结果
+        const detail = {
+          nodeId: node.id,
+          nodeName: node.name,
+          themeId: themeId,
+          themeName: theme ? theme.name : null,
+          isMatched: !!theme
+        };
+        
+        result.matchingDetails.push(detail);
+        
+        // 更新统计
+        if (theme) {
+          result.matchedNodes++;
+        } else {
+          result.unmatchedNodes++;
+        }
+      });
+      
+      return result;
+    }
+    
+    // 显示测试结果
+    function displayTestResult(result) {
+      // 显示摘要
+      const matchRate = (result.matchedNodes / result.totalNodes * 100).toFixed(2);
+      resultSummaryEl.innerHTML = `
+        <div>总节点数: ${result.totalNodes}</div>
+        <div>匹配成功的节点数: <span class="success">${result.matchedNodes}</span></div>
+        <div>匹配失败的节点数: <span class="error">${result.unmatchedNodes}</span></div>
+        <div>匹配成功率: ${matchRate}%</div>
+      `;
+      
+      // 显示详细匹配情况表格
+      matchingTableBodyEl.innerHTML = '';
+      
+      result.matchingDetails.forEach(detail => {
+        const row = document.createElement('tr');
+        
+        // 为匹配失败的行添加特殊样式
+        if (!detail.isMatched) {
+          row.style.backgroundColor = '#fff2f0';
+        }
+        
+        row.innerHTML = `
+          <td>${detail.nodeId}</td>
+          <td>${detail.nodeName}</td>
+          <td>${detail.themeId || '(无)'}</td>
+          <td>${detail.themeName || '(未匹配)'}</td>
+          <td>${detail.isMatched ? '<span class="success">成功</span>' : '<span class="error">失败</span>'}</td>
+        `;
+        
+        matchingTableBodyEl.appendChild(row);
+      });
+      
+      // 如果所有节点都匹配成功，显示成功消息
+      if (result.unmatchedNodes === 0) {
+        resultSummaryEl.innerHTML += '<div class="success">🎉 恭喜！所有节点都成功匹配到了主题名称！</div>';
+      } else {
+        // 否则显示提示信息
+        resultSummaryEl.innerHTML += `
+          <div class="error">
+            ⚠️ 有${result.unmatchedNodes}个节点未能匹配到主题。
+            请检查节点的themeId是否正确，以及对应的主题是否存在。
+          </div>
+        `;
+      }
+    }
+  </script>
+</body>
+</html>

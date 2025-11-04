@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>节点数据测试</title>
+    <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        button { padding: 8px 16px; margin-right: 10px; cursor: pointer; }
+        .result { margin-top: 20px; padding: 10px; border: 1px solid #ddd; background-color: #f9f9f9; max-height: 400px; overflow-y: auto; white-space: pre-wrap; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>节点数据测试</h1>
+        <div>
+            <button id="getAllNodes">获取所有节点</button>
+            <button id="getThemes">获取主题列表</button>
+        </div>
+        <div class="result" id="result"></div>
+    </div>
+
+    <script>
+        const resultElement = document.getElementById('result');
+        const apiBaseUrl = 'http://localhost:8080/api';
+
+        // 显示结果
+        function showResult(data) {
+            resultElement.textContent = JSON.stringify(data, null, 2);
+        }
+
+        // 获取所有节点
+        document.getElementById('getAllNodes').addEventListener('click', async () => {
+            try {
+                resultElement.textContent = '加载中...';
+                const response = await axios.get(`${apiBaseUrl}/nodes`);
+                showResult(response.data);
+            } catch (error) {
+                showResult({ error: error.message });
+            }
+        });
+
+        // 获取主题列表
+        document.getElementById('getThemes').addEventListener('click', async () => {
+            try {
+                resultElement.textContent = '加载中...';
+                const response = await axios.get(`${apiBaseUrl}/themes`);
+                showResult(response.data);
+            } catch (error) {
+                showResult({ error: error.message });
+            }
+        });
+
+        // 页面加载后自动测试
+        window.onload = function() {
+            setTimeout(() => {
+                document.getElementById('getAllNodes').click();
+            }, 500);
+        };
+    </script>
+</body>
+</html>

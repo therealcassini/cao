@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图谱数据调试工具</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        button {
+            padding: 8px 16px;
+            background-color: #4285F4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-bottom: 10px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #3367d6;
+        }
+        pre {
+            background-color: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            max-height: 500px;
+            white-space: pre-wrap;
+            font-size: 12px;
+        }
+        .test-section {
+            margin-bottom: 30px;
+        }
+        .error {
+            color: red;
+        }
+        .success {
+            color: green;
+        }
+        .highlight {
+            background-color: #ffffcc;
+            padding: 2px;
+        }
+    </style>
+</head>
+<body>
+    <h1>图谱数据调试工具</h1>
+    
+    <div class="test-section">
+        <h2>1. 获取完整图谱数据</h2>
+        <button id="fetchGraphData">获取图谱数据</button>
+        <pre id="graphDataResult">准备就绪...</pre>
+    </div>
+    
+    <div class="test-section">
+        <h2>2. 分析节点与边的关联</h2>
+        <pre id="analysisResult">请先获取图谱数据...</pre>
+    </div>
+    
+    <div class="test-section">
+        <h2>3. 查找未匹配的边</h2>
+        <pre id="unmatchedEdgesResult">请先获取图谱数据...</pre>
+    </div>
+
+    <script>
+        // 存储图谱数据
+        let graphData = null;
+        
+        // 工具函数：显示结果到指定元素
+        function displayResult(elementId, data) {
+            const element = document.getElementById(elementId);
+            try {
+                if (typeof data === 'string') {
+                    element.textContent = data;
+                } else {
+                    element.textContent = JSON.stringify(data, null, 2);
+                }
+            } catch (e) {
+                element.textContent = '无法格式化数据: ' + e.message;
+            }
+        }
+        
+        // 工具函数：处理fetch请求
+        async function makeFetchRequest(url, resultElementId) {
+            const element = document.getElementById(resultElementId);
+            element.textContent = '正在请求...';
+            
+            try {
+                console.log('发起请求:', url);
+                const startTime = Date.now();
+                const response = await fetch(url);
+                const endTime = Date.now();
+                
+                console.log('请求完成，耗时:', endTime - startTime, 'ms, 状态码:', response.status);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP错误! 状态码: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                console.log('请求成功，数据:', data);
+                displayResult(resultElementId, data);
+                
+                return data;
+            } catch (error) {
+                console.error('请求失败:', error);
+                element.textContent = `请求失败: ${error.message}\n\n请查看控制台获取详细信息`;
+            }
+        }
+        
+        // 分析节点与边的关联
+        function analyzeGraphData(data) {
+            if (!data || !data.nodes || !data.edges) {
+                return '无效的图谱数据';
+            }
+            
+            // 创建节点名称映射
+            const nodeNameMap = {};
+            data.nodes.forEach(node => {
+                nodeNameMap[node.name] = node;
+            });
+            
+            // 分析结果
+            const analysis = {
+                totalNodes: data.nodes.length,
+                totalEdges: data.edges.length,
+                nodesWithProperNames: data.nodes.filter(node => node.name && typeof node.name === 'string' && node.name.trim() !== '').length,
+                nodesMissingNames: data.nodes.filter(node => !node.name || typeof node.name !== 'string' || node.name.trim() === '').length,
+                edgesWithProperNames: data.edges.filter(edge => 
+                    edge.sourceNodeName && typeof edge.sourceNodeName === 'string' && edge.sourceNodeName.trim() !== '' &&
+                    edge.targetNodeName && typeof edge.targetNodeName === 'string' && edge.targetNodeName.trim() !== ''
+                ).length,
+                edgesMissingNames: data.edges.filter(edge => 
+                    !edge.sourceNodeName || typeof edge.sourceNodeName !== 'string' || edge.sourceNodeName.trim() === '' ||
+                    !edge.targetNodeName || typeof edge.targetNodeName !== 'string' || edge.targetNodeName.trim() === ''
+                ).length
+            };
+            
+            // 检查名称编码问题
+            analysis.potentialEncodingIssues = [];
+            data.nodes.forEach(node => {
+                if (node.name && /[\u0000-\u001F\u007F-\u009F\uD800-\uDFFF]/.test(node.name)) {
+                    analysis.potentialEncodingIssues.push({
+                        type: 'node',
+                        id: node.id,
+                        name: node.name,
+                        reason: '可能包含不可见字符或无效Unicode'
+                    });
+                }
+            });
+            
+            data.edges.forEach(edge => {
+                if (edge.sourceNodeName && /[\u0000-\u001F\u007F-\u009F\uD800-\uDFFF]/.test(edge.sourceNodeName)) {
+                    analysis.potentialEncodingIssues.push({
+                        type: 'edge.source',
+                        id: edge.id,
+                        name: edge.sourceNodeName,
+                        reason: '源节点名称可能包含不可见字符或无效Unicode'
+                    });
+                }
+                if (edge.targetNodeName && /[\u0000-\u001F\u007F-\u009F\uD800-\uDFFF]/.test(edge.targetNodeName)) {
+                    analysis.potentialEncodingIssues.push({
+                        type: 'edge.target',
+                        id: edge.id,
+                        name: edge.targetNodeName,
+                        reason: '目标节点名称可能包含不可见字符或无效Unicode'
+                    });
+                }
+            });
+            
+            return analysis;
+        }
+        
+        // 查找未匹配的边
+        function findUnmatchedEdges(data) {
+            if (!data || !data.nodes || !data.edges) {
+                return '无效的图谱数据';
+            }
+            
+            // 创建节点名称集合（不区分大小写）
+            const nodeNames = new Set();
+            data.nodes.forEach(node => {
+                if (node.name && typeof node.name === 'string') {
+                    nodeNames.add(node.name.trim());
+                }
+            });
+            
+            // 查找未匹配的边
+            const unmatchedEdges = [];
+            
+            data.edges.forEach(edge => {
+                const sourceExists = edge.sourceNodeName && nodeNames.has(edge.sourceNodeName.trim());
+                const targetExists = edge.targetNodeName && nodeNames.has(edge.targetNodeName.trim());
+                
+                if (!sourceExists || !targetExists) {
+                    unmatchedEdges.push({
+                        edgeId: edge.id,
+                        sourceNodeName: edge.sourceNodeName,
+                        targetNodeName: edge.targetNodeName,
+                        relation: edge.relation,
+                        issues: []
+                    });
+                    
+                    if (!sourceExists) {
+                        unmatchedEdges[unmatchedEdges.length - 1].issues.push('源节点不存在');
+                    }
+                    if (!targetExists) {
+                        unmatchedEdges[unmatchedEdges.length - 1].issues.push('目标节点不存在');
+                    }
+                }
+            });
+            
+            return {
+                totalUnmatchedEdges: unmatchedEdges.length,
+                unmatchedEdges: unmatchedEdges
+            };
+        }
+        
+        // 绑定按钮事件
+        document.getElementById('fetchGraphData').addEventListener('click', async () => {
+            const data = await makeFetchRequest('http://localhost:8080/api/graph/full', 'graphDataResult');
+            if (data) {
+                graphData = data;
+                
+                // 分析数据
+                const analysis = analyzeGraphData(data);
+                displayResult('analysisResult', analysis);
+                
+                // 查找未匹配的边
+                const unmatchedEdges = findUnmatchedEdges(data);
+                displayResult('unmatchedEdgesResult', unmatchedEdges);
+            }
+        });
+        
+        // 页面加载时自动执行测试
+        window.addEventListener('load', () => {
+            console.log('页面加载完成，准备调试图谱数据...');
+        });
+    </script>
+</body>
+</html>

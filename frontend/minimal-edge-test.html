@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>边显示最小测试</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        #testChart {
+            width: 100%;
+            height: 500px;
+        }
+        .log-container {
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body class="bg-gray-50 p-4">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-2xl font-bold mb-4">ECharts 边显示最小测试</h1>
+        
+        <div class="bg-white shadow-md rounded-lg p-4 mb-6">
+            <div class="flex flex-wrap gap-4 mb-4">
+                <button id="fetchDataBtn" class="bg-blue-500 text-white px-4 py-2 rounded-md hover:bg-blue-600 transition-colors">
+                    获取真实知识图谱数据
+                </button>
+                <button id="useMockDataBtn" class="bg-green-500 text-white px-4 py-2 rounded-md hover:bg-green-600 transition-colors">
+                    使用模拟数据
+                </button>
+                <button id="clearLogsBtn" class="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 transition-colors">
+                    清空日志
+                </button>
+            </div>
+            
+            <div class="mb-4">
+                <h2 class="text-lg font-semibold mb-2">调试日志</h2>
+                <div id="logs" class="bg-gray-900 text-gray-200 p-3 rounded-md log-container"></div>
+            </div>
+        </div>
+        
+        <div class="bg-white shadow-md rounded-lg p-4">
+            <h2 class="text-lg font-semibold mb-2">图表预览</h2>
+            <div id="testChart"></div>
+            <div class="mt-4 text-sm text-gray-600">
+                <p id="chartInfo" class="italic">点击上方按钮加载数据</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let chart = null;
+        const logsElement = document.getElementById('logs');
+        const chartInfoElement = document.getElementById('chartInfo');
+        
+        // 初始化图表
+        function initChart() {
+            if (!chart) {
+                chart = echarts.init(document.getElementById('testChart'));
+                window.addEventListener('resize', function() {
+                    chart.resize();
+                });
+            }
+        }
+        
+        // 添加日志
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            let colorClass = 'text-gray-300';
+            
+            switch(type) {
+                case 'success':
+                    colorClass = 'text-green-400';
+                    break;
+                case 'error':
+                    colorClass = 'text-red-400';
+                    break;
+                case 'warning':
+                    colorClass = 'text-yellow-400';
+                    break;
+                case 'info':
+                    colorClass = 'text-blue-400';
+                    break;
+            }
+            
+            const logEntry = document.createElement('div');
+            logEntry.className = 'mb-1';
+            logEntry.innerHTML = `<span class="text-gray-500">[${timestamp}]</span> <span class="${colorClass}">${message}</span>`;
+            logsElement.appendChild(logEntry);
+            logsElement.scrollTop = logsElement.scrollHeight;
+        }
+        
+        // 清空日志
+        function clearLogs() {
+            logsElement.innerHTML = '';
+        }
+        
+        // 创建简化的节点映射
+        function createNodeMap(nodes) {
+            const nodeMap = {};
+            const nameToIdMap = {};
+            
+            nodes.forEach(node => {
+                // 确保ID是字符串类型
+                const stringId = typeof node.id === 'string' ? node.id : String(node.id);
+                nodeMap[stringId] = node;
+                nameToIdMap[node.name] = stringId;
+                node.id = stringId; // 更新节点ID为字符串
+            });
+            
+            return { nodeMap, nameToIdMap };
+        }
+        
+        // 渲染图表
+        function renderChart(nodes, edges) {
+            log(`开始渲染图表: 节点数=${nodes.length}, 边数=${edges.length}`);
+            chartInfoElement.textContent = `渲染中... 节点数: ${nodes.length}, 边数: ${edges.length}`;
+            
+            // 创建节点映射
+            const { nodeMap, nameToIdMap } = createNodeMap(nodes);
+            
+            // 转换边数据
+            const processedEdges = edges.map((edge, index) => {
+                const sourceId = nameToIdMap[edge.sourceNodeName];
+                const targetId = nameToIdMap[edge.targetNodeName];
+                
+                // 调试信息
+                log(`处理边 #${index + 1}: 关系="${edge.relation}", 源节点="${edge.sourceNodeName}" -> ID=${sourceId}, 目标节点="${edge.targetNodeName}" -> ID=${targetId}`);
+                
+                if (!sourceId || !targetId) {
+                    log(`  警告: 边 #${index + 1} 无效，缺少源节点或目标节点`, 'warning');
+                }
+                
+                return {
+                    source: sourceId,
+                    target: targetId,
+                    name: edge.relation,
+                    relation: edge.relation,
+                    sourceName: edge.sourceNodeName,
+                    targetName: edge.targetNodeName,
+                    lineStyle: {
+                        color: '#666666',
+                        width: 2.5,
+                        opacity: 1,
+                        type: 'solid'
+                    },
+                    label: {
+                        show: true,
+                        formatter: edge.relation,
+                        fontSize: 12,
+                        color: '#333',
+                        backgroundColor: 'rgba(255, 255, 255, 0.7)',
+                        padding: [2, 5],
+                        borderRadius: 3
+                    }
+                };
+            }).filter(edge => edge.source && edge.target); // 只保留有效的边
+            
+            log(`有效边数: ${processedEdges.length}`, 'success');
+            
+            // 打印一些节点映射示例
+            const nodeNames = Object.keys(nameToIdMap).slice(0, 5);
+            nodeNames.forEach(name => {
+                log(`节点映射示例: "${name}" -> ID=${nameToIdMap[name]}`);
+            });
+            
+            // ECharts 配置
+            const option = {
+                tooltip: {
+                    trigger: 'item',
+                    formatter: function(params) {
+                        if (params.dataType === 'edge') {
+                            return `关系: ${params.data.relation}<br/>源节点: ${params.data.sourceName}<br/>目标节点: ${params.data.targetName}`;
+                        } else {
+                            return `节点: ${params.name}<br/>类型: ${params.data.type || '未知'}`;
+                        }
+                    }
+                },
+                animationDuration: 1500,
+                animationEasingUpdate: 'quinticInOut',
+                series: [
+                    {
+                        type: 'graph',
+                        layout: 'force',
+                        force: {
+                            repulsion: 100,
+                            edgeLength: 80,
+                            gravity: 0.1
+                        },
+                        roam: true,
+                        label: {
+                            show: true,
+                            position: 'right',
+                            formatter: '{b}',
+                            fontSize: 12
+                        },
+                        data: nodes,
+                        links: processedEdges,
+                        lineStyle: {
+                            opacity: 1,
+                            width: 2,
+                            curveness: 0,
+                            color: '#666666'
+                        },
+                        emphasis: {
+                            focus: 'adjacency',
+                            lineStyle: {
+                                width: 4
+                            }
+                        }
+                    }
+                ]
+            };
+            
+            // 设置选项并渲染
+            chart.setOption(option);
+            chartInfoElement.textContent = `渲染完成: 节点数: ${nodes.length}, 有效边数: ${processedEdges.length}`;
+            log('图表渲染完成', 'success');
+        }
+        
+        // 获取真实知识图谱数据
+        async function fetchRealData() {
+            log('开始获取真实知识图谱数据...');
+            
+            try {
+                const response = await fetch('http://localhost:8080/api/knowledge-graph');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP错误! 状态码: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                log('成功获取数据', 'success');
+                
+                // 检查数据结构
+                if (!data.nodes || !data.edges) {
+                    log('错误: 返回的数据不包含nodes或edges字段', 'error');
+                    return;
+                }
+                
+                log(`数据统计: 节点数=${data.nodes.length}, 边数=${data.edges.length}`);
+                
+                // 渲染图表
+                renderChart(data.nodes, data.edges);
+                
+            } catch (error) {
+                log(`获取数据失败: ${error.message}`, 'error');
+                chartInfoElement.textContent = `获取数据失败: ${error.message}`;
+            }
+        }
+        
+        // 使用模拟数据
+        function useMockData() {
+            log('使用模拟数据进行测试...');
+            
+            // 简单的模拟数据，确保边可以显示
+            const mockNodes = [
+                { id: '1', name: '韩立', type: '人物' },
+                { id: '2', name: '张铁', type: '人物' },
+                { id: '3', name: '厉飞雨', type: '人物' },
+                { id: '4', name: '墨居仁', type: '人物' }
+            ];
+            
+            const mockEdges = [
+                { id: 'e1', sourceNodeName: '韩立', targetNodeName: '张铁', relation: '好友' },
+                { id: 'e2', sourceNodeName: '韩立', targetNodeName: '厉飞雨', relation: '好友' },
+                { id: 'e3', sourceNodeName: '墨居仁', targetNodeName: '韩立', relation: '师父' }
+            ];
+            
+            log(`模拟数据统计: 节点数=${mockNodes.length}, 边数=${mockEdges.length}`);
+            
+            // 渲染图表
+            renderChart(mockNodes, mockEdges);
+        }
+        
+        // 绑定事件
+        document.getElementById('fetchDataBtn').addEventListener('click', fetchRealData);
+        document.getElementById('useMockDataBtn').addEventListener('click', useMockData);
+        document.getElementById('clearLogsBtn').addEventListener('click', clearLogs);
+        
+        // 页面加载完成后初始化
+        window.addEventListener('DOMContentLoaded', function() {
+            initChart();
+            log('页面已初始化，请点击按钮加载数据');
+        });
+    </script>
+</body>
+</html>

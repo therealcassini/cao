@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>简单边测试</title>
+    <script src="https://cdn.jsdelivr.net/npm/echarts@5.4.3/dist/echarts.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .chart {
+            width: 100%;
+            height: 600px;
+            border: 1px solid #ddd;
+            margin-top: 20px;
+        }
+        .log-panel {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f5f5f5;
+            border-radius: 5px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        button {
+            padding: 8px 16px;
+            background-color: #4285F4;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #3367d6;
+        }
+        .controls {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>简单边测试</h1>
+        <p>这个页面用于测试知识图谱中边的显示功能</p>
+        
+        <div class="controls">
+            <button id="testRealData">测试真实API数据</button>
+            <button id="testMockData">测试模拟数据</button>
+        </div>
+        
+        <div id="chart" class="chart"></div>
+        
+        <div class="log-panel">
+            <h3>调试日志</h3>
+            <div id="log"></div>
+        </div>
+    </div>
+
+    <script>
+        // 获取DOM元素
+        const chartDom = document.getElementById('chart');
+        const logElement = document.getElementById('log');
+        
+        // 初始化ECharts实例
+        const chart = echarts.init(chartDom);
+        
+        // 日志函数
+        function log(message, level = 'info') {
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-${level}`;
+            logEntry.innerHTML = `<span>[${new Date().toLocaleTimeString()}]</span> ${message}`;
+            logElement.appendChild(logEntry);
+            logElement.scrollTop = logElement.scrollHeight;
+            console.log(message);
+        }
+        
+        // 清除日志
+        function clearLog() {
+            logElement.innerHTML = '';
+        }
+        
+        // 从API获取数据
+        async function fetchData() {
+            try {
+                clearLog();
+                log('正在获取知识图谱数据...');
+                
+                // 使用fetch API获取数据
+                const response = await fetch('/api/graph/full');
+                if (!response.ok) {
+                    throw new Error(`HTTP错误! 状态码: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                log(`成功获取数据: 节点数=${data.nodes.length}, 边数=${data.edges.length}`);
+                
+                return data;
+            } catch (error) {
+                log(`获取数据失败: ${error.message}`, 'error');
+                throw error;
+            }
+        }
+        
+        // 创建模拟数据
+        function createMockData() {
+            const nodes = [
+                { id: 1, name: '韩立', theme: { id: 1, name: '修仙', defaultNodeColor: '#4285F4' }, color: '#4285F4', size: 30 },
+                { id: 2, name: '张铁', theme: { id: 1, name: '修仙', defaultNodeColor: '#4285F4' }, color: '#4285F4', size: 20 },
+                { id: 3, name: '厉飞雨', theme: { id: 1, name: '修仙', defaultNodeColor: '#4285F4' }, color: '#4285F4', size: 20 },
+                { id: 4, name: '墨居仁', theme: { id: 1, name: '修仙', defaultNodeColor: '#4285F4' }, color: '#4285F4', size: 25 }
+            ];
+            
+            const edges = [
+                { id: 1, sourceNodeName: '韩立', targetNodeName: '张铁', relation: '好友', color: '#666666', width: 2, dashed: false },
+                { id: 2, sourceNodeName: '韩立', targetNodeName: '厉飞雨', relation: '好友', color: '#666666', width: 2, dashed: false },
+                { id: 3, sourceNodeName: '墨居仁', targetNodeName: '韩立', relation: '师父', color: '#FF6B6B', width: 3, dashed: false }
+            ];
+            
+            log('创建模拟数据: 节点数=4, 边数=3');
+            return { nodes, edges };
+        }
+        
+        // 处理和渲染数据
+        function processAndRender(data) {
+            const { nodes, edges } = data;
+            
+            // 创建节点名称到ID的映射
+            const nodeMap = new Map();
+            const nodeNameToIdMap = {};
+            
+            nodes.forEach(node => {
+                // 确保节点ID是字符串类型
+                const stringId = typeof node.id === 'string' ? node.id : String(node.id);
+                nodeMap.set(node.name, node);
+                nodeNameToIdMap[node.name] = stringId;
+            });
+            
+            log(`创建了${Object.keys(nodeNameToIdMap).length}个节点映射`);
+            
+            // 转换节点数据格式
+            const echartsNodes = nodes.map(node => ({
+                id: typeof node.id === 'string' ? node.id : String(node.id),
+                name: node.name,
+                value: node.name,
+                category: node.theme?.id || 0,
+                itemStyle: {
+                    color: node.color || node.theme?.defaultNodeColor || '#4285F4'
+                },
+                symbolSize: node.size || node.theme?.defaultNodeSize || 20
+            }));
+            
+            // 转换边数据格式
+            log('开始处理边数据...');
+            const echartsEdges = edges.map(edge => {
+                const sourceId = nodeNameToIdMap[edge.sourceNodeName];
+                const targetId = nodeNameToIdMap[edge.targetNodeName];
+                
+                log(`边ID: ${edge.id}, 关系: "${edge.relation}"`);
+                log(`  源节点: "${edge.sourceNodeName}" -> ID=${sourceId || '未找到'}`);
+                log(`  目标节点: "${edge.targetNodeName}" -> ID=${targetId || '未找到'}`);
+                
+                if (!sourceId) {
+                    log(`警告: 找不到对应的源节点 '${edge.sourceNodeName}'，边ID: ${edge.id}`, 'error');
+                }
+                if (!targetId) {
+                    log(`警告: 找不到对应的目标节点 '${edge.targetNodeName}'，边ID: ${edge.id}`, 'error');
+                }
+                
+                return {
+                    source: sourceId,
+                    target: targetId,
+                    name: edge.relation,
+                    sourceName: edge.sourceNodeName,
+                    targetName: edge.targetNodeName,
+                    label: {
+                        show: true,
+                        formatter: edge.relation,
+                        fontSize: 12,
+                        color: '#333',
+                        backgroundColor: 'rgba(255, 255, 255, 0.7)',
+                        padding: [2, 5],
+                        borderRadius: 3
+                    },
+                    lineStyle: {
+                        color: edge.color || '#666666',
+                        width: edge.width || 2,
+                        type: edge.dashed ? 'dashed' : 'solid',
+                        opacity: 1
+                    }
+                };
+            });
+            
+            // 过滤有效边
+            const validEdges = echartsEdges.filter(edge => 
+                edge.source !== undefined && edge.source !== null && 
+                edge.target !== undefined && edge.target !== null
+            );
+            
+            log(`边处理完成: 总边数=${edges.length}, 有效边数=${validEdges.length}`);
+            
+            // 准备ECharts配置
+            const option = {
+                title: {
+                    text: '知识图谱 - 简单测试',
+                    left: 'center',
+                    textStyle: {
+                        fontSize: 16,
+                        fontWeight: 'bold'
+                    }
+                },
+                tooltip: {
+                    trigger: 'item',
+                    formatter: function(params) {
+                        if (params.dataType === 'edge') {
+                            return `${params.data.sourceName} -[${params.data.name}]-> ${params.data.targetName}`;
+                        }
+                        return params.data.name;
+                    }
+                },
+                series: [
+                    {
+                        type: 'graph',
+                        layout: 'force',
+                        force: {
+                            repulsion: 300,
+                            edgeLength: 100,
+                            gravity: 0.1
+                        },
+                        roam: true,
+                        label: {
+                            show: true,
+                            position: 'right',
+                            fontSize: 12
+                        },
+                        draggable: true,
+                        data: echartsNodes,
+                        links: validEdges,
+                        emphasis: {
+                            focus: 'adjacency',
+                            lineStyle: {
+                                width: 4
+                            }
+                        },
+                        lineStyle: {
+                            opacity: 0.9,
+                            width: 2,
+                            curveness: 0
+                        }
+                    }
+                ]
+            };
+            
+            // 设置配置并渲染
+            chart.setOption(option);
+            log('图表渲染完成');
+        }
+        
+        // 测试真实API数据
+        document.getElementById('testRealData').addEventListener('click', async () => {
+            try {
+                log('===== 开始测试真实API数据 =====');
+                const data = await fetchData();
+                processAndRender(data);
+            } catch (error) {
+                log(`测试失败: ${error.message}`, 'error');
+            }
+        });
+        
+        // 测试模拟数据
+        document.getElementById('testMockData').addEventListener('click', () => {
+            try {
+                log('===== 开始测试模拟数据 =====');
+                const data = createMockData();
+                processAndRender(data);
+            } catch (error) {
+                log(`测试失败: ${error.message}`, 'error');
+            }
+        });
+        
+        // 监听窗口大小变化，调整图表大小
+        window.addEventListener('resize', () => {
+            chart.resize();
+        });
+    </script>
+</body>
+</html>

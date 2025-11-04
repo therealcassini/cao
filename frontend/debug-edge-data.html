@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>图谱数据调试工具</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #4285F4;
+            padding-bottom: 10px;
+        }
+        button {
+            background-color: #4285F4;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #3367d6;
+        }
+        .data-section {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f5f5f5;
+            border-radius: 6px;
+        }
+        h2 {
+            color: #4285F4;
+            margin-top: 20px;
+        }
+        pre {
+            background-color: #2d2d2d;
+            color: #e6e6e6;
+            padding: 15px;
+            border-radius: 4px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            max-height: 500px;
+            overflow-y: auto;
+        }
+        .stats {
+            background-color: #e3f2fd;
+            padding: 10px 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .debug-info {
+            background-color: #fff3e0;
+            padding: 10px 15px;
+            border-radius: 4px;
+            margin: 10px 0;
+            border-left: 4px solid #ff9800;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>知识图谱数据调试工具</h1>
+        <p>此工具用于直接测试后端API并查看返回的节点和边数据，帮助诊断图谱显示问题。</p>
+        
+        <div>
+            <button onclick="fetchFullGraph()">获取完整图谱数据</button>
+            <button onclick="fetchThemes()">获取主题列表</button>
+        </div>
+        
+        <div class="data-section">
+            <h2>调试信息</h2>
+            <div id="debugInfo" class="debug-info">
+                <p>点击上方按钮开始测试...</p>
+            </div>
+        </div>
+        
+        <div class="data-section">
+            <h2>数据统计</h2>
+            <div id="dataStats" class="stats">
+                <p>等待数据加载...</p>
+            </div>
+        </div>
+        
+        <div class="data-section">
+            <h2>原始数据</h2>
+            <pre id="rawData">// 点击按钮获取数据</pre>
+        </div>
+        
+        <div class="data-section">
+            <h2>边数据详情</h2>
+            <pre id="edgeDetails">// 边数据将显示在这里</pre>
+        </div>
+        
+        <div class="data-section">
+            <h2>节点名称映射</h2>
+            <pre id="nodeMap">// 节点名称到ID的映射将显示在这里</pre>
+        </div>
+    </div>
+
+    <script>
+        // 配置API基础URL
+        const API_BASE_URL = 'http://localhost:8080/api';
+        
+        // 显示调试信息
+        function showDebugInfo(message) {
+            const debugElement = document.getElementById('debugInfo');
+            debugElement.innerHTML = `<p>${message}</p>`;
+        }
+        
+        // 显示数据统计
+        function showDataStats(stats) {
+            const statsElement = document.getElementById('dataStats');
+            let statsHTML = '<p>数据统计信息：</p>';
+            
+            if (stats.nodesCount !== undefined) {
+                statsHTML += `<p>• 节点总数：${stats.nodesCount}</p>`;
+            }
+            if (stats.edgesCount !== undefined) {
+                statsHTML += `<p>• 边总数：${stats.edgesCount}</p>`;
+            }
+            if (stats.themesCount !== undefined) {
+                statsHTML += `<p>• 主题总数：${stats.themesCount}</p>`;
+            }
+            
+            statsElement.innerHTML = statsHTML;
+        }
+        
+        // 显示原始数据
+        function showRawData(data) {
+            const rawDataElement = document.getElementById('rawData');
+            rawDataElement.textContent = JSON.stringify(data, null, 2);
+        }
+        
+        // 显示边数据详情
+        function showEdgeDetails(edges) {
+            const edgeDetailsElement = document.getElementById('edgeDetails');
+            
+            if (!edges || edges.length === 0) {
+                edgeDetailsElement.textContent = '没有边数据';
+                return;
+            }
+            
+            // 构建边详情
+            let edgeDetails = `总边数: ${edges.length}\n\n`;
+            edgeDetails += '边详情列表：\n';
+            
+            // 只显示前20条边，避免内容过多
+            const edgesToShow = edges.slice(0, 20);
+            edgesToShow.forEach((edge, index) => {
+                edgeDetails += `\n${index + 1}. ID: ${edge.id || '未知'}\n`;
+                edgeDetails += `   源节点名称: "${edge.sourceNodeName || '未知'}"\n`;
+                edgeDetails += `   目标节点名称: "${edge.targetNodeName || '未知'}"\n`;
+                edgeDetails += `   关系: "${edge.relation || '未知'}"\n`;
+                edgeDetails += `   源节点ID: ${edge.sourceNodeId || '未知'}\n`;
+                edgeDetails += `   目标节点ID: ${edge.targetNodeId || '未知'}`;
+            });
+            
+            if (edges.length > 20) {
+                edgeDetails += `\n\n... 还有 ${edges.length - 20} 条边未显示`;
+            }
+            
+            edgeDetailsElement.textContent = edgeDetails;
+        }
+        
+        // 创建节点名称映射并显示
+        function createAndShowNodeMap(nodes) {
+            const nodeMapElement = document.getElementById('nodeMap');
+            
+            if (!nodes || nodes.length === 0) {
+                nodeMapElement.textContent = '没有节点数据';
+                return {};
+            }
+            
+            // 创建节点名称到ID的映射
+            const nodeMap = {};
+            nodes.forEach(node => {
+                if (node.name) {
+                    nodeMap[node.name] = node.id;
+                }
+            });
+            
+            // 显示映射表
+            let mapContent = `节点总数: ${nodes.length}\n节点名称到ID的映射：\n\n`;
+            
+            // 只显示前30个节点，避免内容过多
+            const sortedNodeNames = Object.keys(nodeMap).sort();
+            const nodeNamesToShow = sortedNodeNames.slice(0, 30);
+            
+            nodeNamesToShow.forEach(name => {
+                mapContent += `"${name}": ${nodeMap[name]}\n`;
+            });
+            
+            if (sortedNodeNames.length > 30) {
+                mapContent += `\n... 还有 ${sortedNodeNames.length - 30} 个节点未显示`;
+            }
+            
+            nodeMapElement.textContent = mapContent;
+            return nodeMap;
+        }
+        
+        // 验证边和节点的关系
+        function validateEdgesAndNodes(edges, nodeMap) {
+            if (!edges || !nodeMap) return;
+            
+            let validEdges = 0;
+            let invalidEdges = 0;
+            const invalidEdgeReasons = [];
+            
+            edges.forEach((edge, index) => {
+                const sourceId = nodeMap[edge.sourceNodeName];
+                const targetId = nodeMap[edge.targetNodeName];
+                
+                if (sourceId && targetId) {
+                    validEdges++;
+                } else {
+                    invalidEdges++;
+                    let reason = `边 ${index + 1}: 源节点: "${edge.sourceNodeName}" (${sourceId ? '有效' : '无效'}), 目标节点: "${edge.targetNodeName}" (${targetId ? '有效' : '无效'})`;
+                    invalidEdgeReasons.push(reason);
+                }
+            });
+            
+            let validationResult = `边验证结果：\n`;
+            validationResult += `• 有效边数：${validEdges}\n`;
+            validationResult += `• 无效边数：${invalidEdges}\n`;
+            
+            if (invalidEdges > 0) {
+                validationResult += `\n无效边详情 (前5条)：\n`;
+                invalidEdgeReasons.slice(0, 5).forEach(reason => {
+                    validationResult += `- ${reason}\n`;
+                });
+            }
+            
+            // 添加到调试信息
+            const debugElement = document.getElementById('debugInfo');
+            const currentDebugHTML = debugElement.innerHTML;
+            debugElement.innerHTML = currentDebugHTML + `<pre style="background-color: #fff; padding: 10px; border-radius: 4px;">${validationResult}</pre>`;
+        }
+        
+        // 获取完整图谱数据
+        async function fetchFullGraph() {
+            showDebugInfo('正在获取完整图谱数据...');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/graph/full`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP错误! 状态码: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                showDebugInfo('图谱数据获取成功');
+                showDataStats({
+                    nodesCount: data.nodes ? data.nodes.length : 0,
+                    edgesCount: data.edges ? data.edges.length : 0
+                });
+                showRawData(data);
+                
+                if (data.edges) {
+                    showEdgeDetails(data.edges);
+                }
+                
+                if (data.nodes) {
+                    const nodeMap = createAndShowNodeMap(data.nodes);
+                    
+                    // 验证边和节点的关系
+                    if (data.edges) {
+                        validateEdgesAndNodes(data.edges, nodeMap);
+                    }
+                }
+                
+            } catch (error) {
+                showDebugInfo(`获取图谱数据失败: ${error.message}`);
+                console.error('获取图谱数据错误:', error);
+            }
+        }
+        
+        // 获取主题列表
+        async function fetchThemes() {
+            showDebugInfo('正在获取主题列表...');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/theme/all`);
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP错误! 状态码: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                showDebugInfo('主题列表获取成功');
+                showDataStats({
+                    themesCount: data.length
+                });
+                showRawData(data);
+                
+                // 清空其他数据区域
+                document.getElementById('edgeDetails').textContent = '// 此操作只获取主题数据';
+                document.getElementById('nodeMap').textContent = '// 此操作只获取主题数据';
+                
+            } catch (error) {
+                showDebugInfo(`获取主题列表失败: ${error.message}`);
+                console.error('获取主题列表错误:', error);
+            }
+        }
+        
+        // 页面加载完成后初始化
+        window.onload = function() {
+            showDebugInfo('页面加载完成，点击上方按钮开始测试');
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>控制台调试日志查看器</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #333;
+            border-bottom: 2px solid #42b983;
+            padding-bottom: 10px;
+        }
+        pre {
+            background-color: #f8f8f8;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 15px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+        .step {
+            margin-bottom: 20px;
+        }
+        .step h3 {
+            color: #42b983;
+        }
+        button {
+            background-color: #42b983;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        button:hover {
+            background-color: #3aa876;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>控制台调试日志查看指南</h1>
+        
+        <div class="step">
+            <h3>步骤1：打开浏览器开发者工具</h3>
+            <p>在知识图谱页面（http://localhost:5173/），按以下快捷键打开开发者工具：</p>
+            <pre>
+Windows/Linux: Ctrl + Shift + I
+Mac: Cmd + Opt + I</pre>
+        </div>
+        
+        <div class="step">
+            <h3>步骤2：查看控制台日志</h3>
+            <p>在开发者工具中，切换到"Console"（控制台）标签页，查看详细的边处理日志信息。</p>
+            <p>您应该能看到类似以下的日志输出：</p>
+            <pre class="example-log">
+===== 原始边数据详情 =====
+边1: ID=1, 源节点="韩立", 目标节点="南宫婉", 关系="夫妻"
+边2: ID=2, 源节点="韩立", 目标节点="厉飞雨", 关系="好友"
+...
+==========================
+
+边ID: 1, 源节点: "韩立" -> ID=1, 目标节点: "南宫婉" -> ID=2
+边ID: 2, 源节点: "韩立" -> ID=1, 目标节点: "厉飞雨" -> ID=3
+...
+
+===== 边处理统计 =====
+总边数: 3
+有效边数: 3
+无效边数: 0
+=====================
+
+处理后的边数据: [ {source: 1, target: 2, name: "夫妻"}, ... ]</pre>
+        </div>
+        
+        <div class="step">
+            <h3>步骤3：验证解决方案</h3>
+            <p>如果所有边都显示为有效边，并且处理后的边数据不为空，那么边应该能正确显示在知识图谱中。</p>
+        </div>
+        
+        <div>
+            <h3>直接测试图谱数据</h3>
+            <button id="testDataBtn">测试图谱数据</button>
+            <div id="testResult" style="margin-top: 15px;"></div>
+        </div>
+    </div>
+    
+    <script>
+        document.getElementById('testDataBtn').addEventListener('click', async function() {
+            const resultDiv = document.getElementById('testResult');
+            resultDiv.innerHTML = '<p>正在获取图谱数据...</p>';
+            
+            try {
+                // 直接调用API获取图谱数据
+                const response = await fetch('/api/knowledge-graph');
+                if (!response.ok) {
+                    throw new Error(`HTTP错误! 状态码: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                
+                // 格式化并显示结果
+                const formattedResult = `
+                    <h4>API返回的数据:</h4>
+                    <pre>节点数: ${data.nodes?.length || 0}
+边数: ${data.edges?.length || 0}</pre>
+                `;
+                
+                // 显示部分节点和边数据
+                if (data.nodes && data.nodes.length > 0) {
+                    const sampleNodes = data.nodes.slice(0, 5).map(node => 
+                        `节点ID: ${node.id}, 名称: ${node.name}`
+                    ).join('\n');
+                    formattedResult += `<h4>示例节点数据:</h4><pre>${sampleNodes}</pre>`;
+                }
+                
+                if (data.edges && data.edges.length > 0) {
+                    const sampleEdges = data.edges.slice(0, 5).map(edge => 
+                        `边ID: ${edge.id}, 源节点: ${edge.sourceNodeName}, 目标节点: ${edge.targetNodeName}, 关系: ${edge.relation}`
+                    ).join('\n');
+                    formattedResult += `<h4>示例边数据:</h4><pre>${sampleEdges}</pre>`;
+                }
+                
+                resultDiv.innerHTML = formattedResult;
+            } catch (error) {
+                resultDiv.innerHTML = `<p style="color: red;">获取数据失败: ${error.message}</p>`;
+                console.error('API调用错误:', error);
+            }
+        });
+    </script>
+</body>
+</html>

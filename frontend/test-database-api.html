@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据库API测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            line-height: 1.6;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        h1 {
+            color: #333;
+        }
+        h2 {
+            color: #555;
+            margin-top: 0;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 14px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .result {
+            background-color: #f5f5f5;
+            padding: 15px;
+            border-radius: 4px;
+            font-family: monospace;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        select {
+            padding: 8px;
+            margin: 10px 0;
+            width: 100%;
+            max-width: 400px;
+        }
+        input {
+            padding: 8px;
+            margin: 10px 0;
+            width: 100%;
+            max-width: 400px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>数据库API测试页面</h1>
+        
+        <!-- 测试数据库列表API -->
+        <div class="section">
+            <h2>1. 获取数据库列表</h2>
+            <button onclick="testGetDatabases()">测试 /api/database/databases</button>
+            <div id="databasesResult" class="result">点击按钮查看结果...</div>
+        </div>
+        
+        <!-- 测试数据表列表API -->
+        <div class="section">
+            <h2>2. 获取数据表列表</h2>
+            <select id="databaseSelect" onchange="updateDatabaseName(this.value)">
+                <option value="">请先选择数据库</option>
+            </select>
+            <button onclick="testGetTables()">测试 /api/database/databases/{database}/tables</button>
+            <div id="tablesResult" class="result">选择数据库后点击按钮查看结果...</div>
+        </div>
+        
+        <!-- 测试表结构API -->
+        <div class="section">
+            <h2>3. 获取表结构</h2>
+            <select id="tableSelect">
+                <option value="">请先选择数据表</option>
+            </select>
+            <button onclick="testGetTableStructure()">测试 /api/database/tables/{table}/structure</button>
+            <div id="structureResult" class="result">选择数据表后点击按钮查看结果...</div>
+        </div>
+        
+        <!-- 测试表数据API -->
+        <div class="section">
+            <h2>4. 获取表数据</h2>
+            <input type="number" id="offsetInput" placeholder="偏移量" value="0" min="0">
+            <input type="number" id="limitInput" placeholder="每页数量" value="100" min="1" max="1000">
+            <button onclick="testGetTableData()">测试 /api/database/tables/{table}/data?offset={offset}&limit={limit}</button>
+            <div id="dataResult" class="result">选择数据表后点击按钮查看结果...</div>
+        </div>
+    </div>
+    
+    <script>
+        let currentDatabase = '';
+        let currentTable = '';
+        
+        // 更新当前选择的数据库
+        function updateDatabaseName(value) {
+            currentDatabase = value;
+            document.getElementById('tablesResult').textContent = '选择数据库后点击按钮查看结果...';
+            document.getElementById('tableSelect').innerHTML = '<option value="">请先选择数据表</option>';
+            currentTable = '';
+            document.getElementById('structureResult').textContent = '选择数据表后点击按钮查看结果...';
+            document.getElementById('dataResult').textContent = '选择数据表后点击按钮查看结果...';
+        }
+        
+        // 测试获取数据库列表
+        async function testGetDatabases() {
+            const resultElement = document.getElementById('databasesResult');
+            resultElement.textContent = '加载中...';
+            
+            try {
+                const startTime = new Date().getTime();
+                const response = await fetch('/api/database/databases');
+                const endTime = new Date().getTime();
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP错误! 状态码: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                resultElement.textContent = `请求成功 (耗时: ${endTime - startTime}ms)\n\n${JSON.stringify(data, null, 2)}`;
+                
+                // 填充数据库下拉框
+                const databaseSelect = document.getElementById('databaseSelect');
+                databaseSelect.innerHTML = '<option value="">请选择数据库</option>';
+                data.forEach(db => {
+                    const option = document.createElement('option');
+                    option.value = db.name;
+                    option.textContent = db.name;
+                    databaseSelect.appendChild(option);
+                });
+            } catch (error) {
+                resultElement.textContent = `请求失败:\n${error.message}\n\n可能的原因:\n1. 后端服务未运行\n2. API路径不正确\n3. 跨域问题`;
+            }
+        }
+        
+        // 测试获取数据表列表
+        async function testGetTables() {
+            if (!currentDatabase) {
+                document.getElementById('tablesResult').textContent = '请先选择数据库';
+                return;
+            }
+            
+            const resultElement = document.getElementById('tablesResult');
+            resultElement.textContent = '加载中...';
+            
+            try {
+                const startTime = new Date().getTime();
+                const response = await fetch(`/api/database/databases/${currentDatabase}/tables`);
+                const endTime = new Date().getTime();
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP错误! 状态码: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                resultElement.textContent = `请求成功 (耗时: ${endTime - startTime}ms)\n\n${JSON.stringify(data, null, 2)}`;
+                
+                // 填充数据表下拉框
+                const tableSelect = document.getElementById('tableSelect');
+                tableSelect.innerHTML = '<option value="">请选择数据表</option>';
+                data.forEach(table => {
+                    const option = document.createElement('option');
+                    option.value = table.name;
+                    option.textContent = table.name;
+                    tableSelect.appendChild(option);
+                });
+                
+                // 监听数据表选择变化
+                tableSelect.onchange = function() {
+                    currentTable = this.value;
+                    document.getElementById('structureResult').textContent = '选择数据表后点击按钮查看结果...';
+                    document.getElementById('dataResult').textContent = '选择数据表后点击按钮查看结果...';
+                };
+            } catch (error) {
+                resultElement.textContent = `请求失败:\n${error.message}`;
+            }
+        }
+        
+        // 测试获取表结构
+        async function testGetTableStructure() {
+            if (!currentTable) {
+                document.getElementById('structureResult').textContent = '请先选择数据表';
+                return;
+            }
+            
+            const resultElement = document.getElementById('structureResult');
+            resultElement.textContent = '加载中...';
+            
+            try {
+                const startTime = new Date().getTime();
+                const response = await fetch(`/api/database/tables/${currentTable}/structure`);
+                const endTime = new Date().getTime();
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP错误! 状态码: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                resultElement.textContent = `请求成功 (耗时: ${endTime - startTime}ms)\n\n${JSON.stringify(data, null, 2)}`;
+            } catch (error) {
+                resultElement.textContent = `请求失败:\n${error.message}`;
+            }
+        }
+        
+        // 测试获取表数据
+        async function testGetTableData() {
+            if (!currentTable) {
+                document.getElementById('dataResult').textContent = '请先选择数据表';
+                return;
+            }
+            
+            const offset = document.getElementById('offsetInput').value;
+            const limit = document.getElementById('limitInput').value;
+            const resultElement = document.getElementById('dataResult');
+            resultElement.textContent = '加载中...';
+            
+            try {
+                const startTime = new Date().getTime();
+                const response = await fetch(`/api/database/tables/${currentTable}/data?offset=${offset}&limit=${limit}`);
+                const endTime = new Date().getTime();
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP错误! 状态码: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                // 为了显示简洁，只显示前5条记录
+                const displayData = {
+                    total: data.total || data.length,
+                    page: data.page || 1,
+                    pageSize: data.pageSize || limit,
+                    data: data.data ? data.data.slice(0, 5) : data.slice(0, 5),
+                    hasMore: data.data ? data.data.length > 5 : data.length > 5
+                };
+                resultElement.textContent = `请求成功 (耗时: ${endTime - startTime}ms)\n\n显示前5条记录:\n${JSON.stringify(displayData, null, 2)}`;
+            } catch (error) {
+                resultElement.textContent = `请求失败:\n${error.message}`;
+            }
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>关系数据字段检查</title>
+  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    .container { max-width: 800px; margin: 0 auto; }
+    h1 { color: #333; }
+    button { padding: 10px 20px; background-color: #4CAF50; color: white; border: none; cursor: pointer; margin-top: 10px; }
+    pre { background-color: #f5f5f5; padding: 15px; border-radius: 4px; overflow-x: auto; white-space: pre-wrap; word-wrap: break-word; }
+    .theme-selection { margin-bottom: 20px; }
+    .theme-selection label, .theme-selection input { margin-right: 10px; }
+    .highlight { background-color: #ffeb3b; padding: 0 3px; }
+    table { border-collapse: collapse; width: 100%; margin-top: 20px; }
+    th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+    th { background-color: #f2f2f2; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>关系数据字段检查工具</h1>
+    
+    <div class="theme-selection">
+      <label for="themeId">主题ID:</label>
+      <input type="text" id="themeId" placeholder="输入主题ID">
+      <button id="checkBtn">检查关系数据</button>
+    </div>
+    
+    <div id="resultSection">
+      <h2>后端API返回数据:</h2>
+      <pre id="apiResponse"></pre>
+      
+      <h2>数据字段分析:</h2>
+      <pre id="fieldAnalysis"></pre>
+      
+      <h2>关系数据表模拟:</h2>
+      <table id="edgeDataTable">
+        <thead>
+          <tr>
+            <th>关系ID</th>
+            <th>关系类型</th>
+            <th>源节点</th>
+            <th>目标节点</th>
+            <th>颜色</th>
+            <th>宽度</th>
+          </tr>
+        </thead>
+        <tbody id="edgeTableBody">
+          <tr><td colspan="6">请点击上方按钮检查数据</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+  
+  <script>
+    // 基础URL
+    const baseUrl = 'http://localhost:8080/api';
+    
+    // 获取DOM元素
+    const themeIdInput = document.getElementById('themeId');
+    const checkBtn = document.getElementById('checkBtn');
+    const apiResponse = document.getElementById('apiResponse');
+    const fieldAnalysis = document.getElementById('fieldAnalysis');
+    const edgeTableBody = document.getElementById('edgeTableBody');
+    
+    // 检查关系数据按钮点击事件
+    checkBtn.addEventListener('click', async () => {
+      const themeId = themeIdInput.value.trim();
+      if (!themeId) {
+        alert('请输入主题ID');
+        return;
+      }
+      
+      try {
+        apiResponse.textContent = '正在获取数据...';
+        fieldAnalysis.textContent = '';
+        edgeTableBody.innerHTML = '<tr><td colspan="6">正在处理数据...</td></tr>';
+        
+        // 调用后端API获取关系数据
+        const response = await axios.get(`${baseUrl}/edges/theme/${themeId}`);
+        const edgeData = response.data;
+        
+        // 显示完整的API响应
+        apiResponse.textContent = JSON.stringify(edgeData, null, 2);
+        
+        // 分析数据字段
+        analyzeFields(edgeData);
+        
+        // 创建模拟表格
+        createEdgeTable(edgeData);
+        
+        // 同时获取主题数据和节点数据进行对比
+        await fetchRelatedData(themeId);
+      } catch (error) {
+        apiResponse.textContent = `获取数据失败: ${error.message}\n${JSON.stringify(error.response?.data || {}, null, 2)}`;
+      }
+    });
+    
+    // 分析数据字段
+    function analyzeFields(data) {
+      if (!Array.isArray(data) || data.length === 0) {
+        fieldAnalysis.textContent = '没有找到关系数据或数据格式不正确';
+        return;
+      }
+      
+      const firstEdge = data[0];
+      const allFields = Object.keys(firstEdge);
+      
+      let analysis = `找到 ${data.length} 条关系数据\n\n`;
+      analysis += `所有可用字段: ${allFields.join(', ')}\n\n`;
+      
+      // 检查期望的字段
+      const expectedFields = ['id', 'relation', 'source_node_name', 'target_node_name', 'color', 'width', 'dashed'];
+      
+      expectedFields.forEach(field => {
+        if (allFields.includes(field)) {
+          analysis += `✅ 字段 '${field}' 存在\n`;
+        } else {
+          analysis += `❌ 字段 '${field}' 不存在\n`;
+          
+          // 尝试找到可能的替代字段
+          const possibleMatches = allFields.filter(f => 
+            f.toLowerCase().includes(field.toLowerCase())
+          );
+          
+          if (possibleMatches.length > 0) {
+            analysis += `   可能的替代字段: ${possibleMatches.join(', ')}\n`;
+          }
+        }
+      });
+      
+      fieldAnalysis.textContent = analysis;
+    }
+    
+    // 创建关系数据表格
+    function createEdgeTable(data) {
+      if (!Array.isArray(data) || data.length === 0) {
+        edgeTableBody.innerHTML = '<tr><td colspan="6">没有关系数据</td></tr>';
+        return;
+      }
+      
+      let html = '';
+      
+      data.slice(0, 20).forEach(edge => {
+        html += `
+          <tr>
+            <td>${edge.id || 'N/A'}</td>
+            <td>${edge.relation || edge.type || 'N/A'}</td>
+            <td>${edge.source_node_name || edge.sourceNodeName || edge.source_node_id || edge.sourceNodeId || 'N/A'}</td>
+            <td>${edge.target_node_name || edge.targetNodeName || edge.target_node_id || edge.targetNodeId || 'N/A'}</td>
+            <td>
+              <div style="background-color: ${edge.color || '#000000'}; width: 20px; height: 20px;"></div>
+            </td>
+            <td>${edge.width || 'N/A'}</td>
+          </tr>
+        `;
+      });
+      
+      if (data.length > 20) {
+        html += `<tr><td colspan="6">... 还有 ${data.length - 20} 条记录未显示</td></tr>`;
+      }
+      
+      edgeTableBody.innerHTML = html;
+    }
+    
+    // 获取相关数据用于对比
+    async function fetchRelatedData(themeId) {
+      try {
+        const [themesResponse, nodesResponse] = await Promise.all([
+          axios.get(`${baseUrl}/themes`),
+          axios.get(`${baseUrl}/nodes/theme/${themeId}`)
+        ]);
+        
+        const themes = themesResponse.data;
+        const nodes = nodesResponse.data;
+        
+        // 查找当前主题信息
+        const currentTheme = Array.isArray(themes) ? themes.find(t => t.id === themeId) : null;
+        
+        // 添加到字段分析结果
+        fieldAnalysis.textContent += `\n\n\n相关数据信息:\n`;
+        fieldAnalysis.textContent += `当前主题: ${currentTheme ? currentTheme.name : '未找到'}\n`;
+        fieldAnalysis.textContent += `关联节点数量: ${Array.isArray(nodes) ? nodes.length : 0}\n`;
+        
+        if (Array.isArray(nodes) && nodes.length > 0) {
+          fieldAnalysis.textContent += `节点数据字段示例: ${Object.keys(nodes[0]).join(', ')}\n`;
+        }
+      } catch (error) {
+        fieldAnalysis.textContent += `\n\n获取相关数据时出错，但不影响主要分析。`;
+      }
+    }
+    
+    // 页面加载时尝试获取第一个主题ID
+    window.addEventListener('load', async () => {
+      try {
+        const response = await axios.get(`${baseUrl}/themes`);
+        const themes = response.data;
+        
+        if (Array.isArray(themes) && themes.length > 0) {
+          themeIdInput.value = themes[0].id;
+        }
+      } catch (error) {
+        console.log('自动填充主题ID失败:', error);
+      }
+    });
+  </script>
+</body>
+</html>

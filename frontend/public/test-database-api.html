@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>数据库API测试工具</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', Arial, sans-serif;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .container {
+            background-color: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .input-group {
+            margin-bottom: 15px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        input {
+            width: 100%;
+            padding: 8px;
+            box-sizing: border-box;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+            margin-right: 10px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        .error {
+            color: red;
+        }
+        pre {
+            background-color: #f8f8f8;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            border: 1px solid #ddd;
+        }
+        .tabs {
+            display: flex;
+            margin-bottom: 20px;
+        }
+        .tab {
+            padding: 10px 15px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+        }
+        .tab.active {
+            border-bottom: 2px solid #4CAF50;
+            color: #4CAF50;
+        }
+        .tab-content {
+            display: none;
+        }
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <h1>数据库API测试工具</h1>
+    
+    <div class="tabs">
+        <div class="tab active" onclick="switchTab('databases')">数据库</div>
+        <div class="tab" onclick="switchTab('tables')">数据表</div>
+        <div class="tab" onclick="switchTab('tableData')">表数据</div>
+    </div>
+    
+    <div id="databases" class="tab-content active">
+        <div class="container">
+            <h2>测试数据库API</h2>
+            <button onclick="testDatabases()">获取所有数据库</button>
+        </div>
+    </div>
+    
+    <div id="tables" class="tab-content">
+        <div class="container">
+            <h2>测试数据表API</h2>
+            <div class="input-group">
+                <label for="databaseName">数据库名:</label>
+                <input type="text" id="databaseName" placeholder="请输入数据库名">
+            </div>
+            <button onclick="testTables()">获取数据库中的表</button>
+        </div>
+    </div>
+    
+    <div id="tableData" class="tab-content">
+        <div class="container">
+            <h2>测试表数据API</h2>
+            <div class="input-group">
+                <label for="databaseName">数据库名:</label>
+                <input type="text" id="databaseName" placeholder="请输入数据库名">
+            </div>
+            <div class="input-group">
+                <label for="tableName">表名:</label>
+                <input type="text" id="tableName" placeholder="请输入表名">
+            </div>
+            <button onclick="testTableStructure()">获取表结构</button>
+            <button onclick="testTableData()">获取表数据</button>
+        </div>
+    </div>
+    
+    <div class="container">
+        <h2>测试结果</h2>
+        <div id="result"></div>
+    </div>
+
+    <script>
+        // 切换标签
+        function switchTab(tabName) {
+            // 隐藏所有标签内容
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            
+            // 移除所有标签的active状态
+            document.querySelectorAll('.tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            
+            // 显示选中的标签内容
+            document.getElementById(tabName).classList.add('active');
+            
+            // 为选中的标签添加active状态
+            event.currentTarget.classList.add('active');
+        }
+
+        // 测试获取所有数据库
+        function testDatabases() {
+            const url = '/api/database/databases';
+            console.log('测试获取所有数据库:', url);
+            
+            fetch(url)
+                .then(response => {
+                    console.log('响应状态:', response.status);
+                    if (!response.ok) throw new Error(`HTTP错误! 状态码: ${response.status}`);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('数据库列表:', data);
+                    document.getElementById('result').innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                })
+                .catch(error => {
+                    console.error('获取数据库列表失败:', error);
+                    document.getElementById('result').innerHTML = `<div class="error">获取数据库列表失败: ${error.message}</div>`;
+                });
+        }
+
+        // 测试获取数据库中的表
+        function testTables() {
+            const databaseName = document.getElementById('databaseName').value;
+            if (!databaseName) { alert('请输入数据库名'); return; }
+            
+            const url = `/api/database/databases/${databaseName}/tables`;
+            console.log('测试获取数据库中的表:', url);
+            
+            fetch(url)
+                .then(response => {
+                    console.log('响应状态:', response.status);
+                    if (!response.ok) throw new Error(`HTTP错误! 状态码: ${response.status}`);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('数据表列表:', data);
+                    document.getElementById('result').innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                })
+                .catch(error => {
+                    console.error('获取数据表列表失败:', error);
+                    document.getElementById('result').innerHTML = `<div class="error">获取数据表列表失败: ${error.message}</div>`;
+                });
+        }
+
+        // 测试获取表结构
+        function testTableStructure() {
+            const databaseName = document.getElementById('databaseName').value;
+            const tableName = document.getElementById('tableName').value;
+            if (!databaseName || !tableName) { alert('请输入数据库名和表名'); return; }
+            
+            const url = `/api/database/databases/${databaseName}/tables/${tableName}/structure`;
+            console.log('测试获取表结构:', url);
+            
+            fetch(url)
+                .then(response => {
+                    console.log('响应状态:', response.status);
+                    if (!response.ok) throw new Error(`HTTP错误! 状态码: ${response.status}`);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('表结构数据:', data);
+                    document.getElementById('result').innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                })
+                .catch(error => {
+                    console.error('获取表结构失败:', error);
+                    document.getElementById('result').innerHTML = `<div class="error">获取表结构失败: ${error.message}</div>`;
+                });
+        }
+
+        // 测试获取表数据
+        function testTableData() {
+            const databaseName = document.getElementById('databaseName').value;
+            const tableName = document.getElementById('tableName').value;
+            if (!databaseName || !tableName) { alert('请输入数据库名和表名'); return; }
+            
+            const url = `/api/database/databases/${databaseName}/tables/${tableName}/data?offset=0&limit=10`;
+            console.log('测试获取表数据:', url);
+            
+            fetch(url)
+                .then(response => {
+                    console.log('响应状态:', response.status);
+                    if (!response.ok) throw new Error(`HTTP错误! 状态码: ${response.status}`);
+                    return response.json();
+                })
+                .then(data => {
+                    console.log('表数据:', data);
+                    document.getElementById('result').innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+                })
+                .catch(error => {
+                    console.error('获取表数据失败:', error);
+                    document.getElementById('result').innerHTML = `<div class="error">获取表数据失败: ${error.message}</div>`;
+                });
+        }
+    </script>
+</body>
+</html>
