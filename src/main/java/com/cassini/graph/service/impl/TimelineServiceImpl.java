@@ -22,7 +22,8 @@ public class TimelineServiceImpl implements TimelineService {
 
     @Override
     public List<TimelinePerson> getAllPersons() {
-        String sql = "SELECT * FROM timeline_persons";
+        // 按出生日期升序排序，这样年龄大的人会排在前面
+        String sql = "SELECT * FROM timeline_persons ORDER BY birth_date ASC";
         return jdbcTemplate.query(sql, new BeanPropertyRowMapper<>(TimelinePerson.class));
     }
 
